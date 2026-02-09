@@ -1,0 +1,26 @@
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/privatization' to '1'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/np' to '16'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/hostfile' to 'hostfiles/cluster_hostfile.txt'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'tracing' to 'yes'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'tracing/filename' to 'smpi_simgrid.trace'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'tracing/smpi' to 'yes'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'surf/precision' to '1e-9'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'network/model' to 'SMPI'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/tmpdir' to '/home/sara/tmp_simgrid'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/host-speed' to '6Gf'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/tmpdir' to '/tmp'
+[bichette] (p2p-i-la) measured_wtime = 14.521541s (la=12) | 31.942648 Gflop/s
+[bichette] (g) measured_wtime = 11.374596s | 40.780040 Gflop/s
+GEMM is correct ( 0.00000e+00)
+[bichette] (p2p-i-la) measured_wtime = 14.084087s (la=12) | 32.934791 Gflop/s
+[bichette] (g) measured_wtime = 10.739096s | 43.193252 Gflop/s
+GEMM is correct ( 0.00000e+00)
+[bichette] (p2p-i-la) measured_wtime = 14.244525s (la=12) | 32.563843 Gflop/s
+[bichette] (g) measured_wtime = 10.332408s | 44.893356 Gflop/s
+GEMM is correct ( 0.00000e+00)
+[bichette] (p2p-i-la) measured_wtime = 14.027280s (la=12) | 33.068170 Gflop/s
+[bichette] (g) measured_wtime = 11.805055s | 39.293039 Gflop/s
+GEMM is correct ( 0.00000e+00)
+[bichette] (p2p-i-la) measured_wtime = 12.809634s (la=12) | 36.211531 Gflop/s
+[bichette] (g) measured_wtime = 11.303864s | 41.035215 Gflop/s
+GEMM is correct ( 0.00000e+00)

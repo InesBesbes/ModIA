@@ -1,0 +1,106 @@
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/privatization' to '1'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/np' to '16'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/hostfile' to 'hostfiles/cluster_hostfile.txt'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'tracing' to 'yes'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'tracing/filename' to 'smpi_simgrid.trace'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'tracing/smpi' to 'yes'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'surf/precision' to '1e-9'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'network/model' to 'SMPI'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/tmpdir' to '/home/sara/tmp_simgrid'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/host-speed' to '6Gf'
+[0.000000] [xbt_cfg/INFO] Configuration change: Set 'smpi/tmpdir' to '/tmp'
+je suis le processus 3 avec le rang 3 pour les lignes et 0 pour les colonnes 
+je suis le processus 2 avec le rang 2 pour les lignes et 0 pour les colonnes 
+je suis le processus 1 avec le rang 1 pour les lignes et 0 pour les colonnes 
+je suis le processus 0 avec le rang 0 pour les lignes et 0 pour les colonnes 
+je suis le processus 15 avec le rang 3 pour les lignes et 3 pour les colonnes 
+je suis le processus 11 avec le rang 3 pour les lignes et 2 pour les colonnes 
+je suis le processus 7 avec le rang 3 pour les lignes et 1 pour les colonnes 
+je suis le processus 13 avec le rang 1 pour les lignes et 3 pour les colonnes 
+je suis le processus 9 avec le rang 1 pour les lignes et 2 pour les colonnes 
+je suis le processus 5 avec le rang 1 pour les lignes et 1 pour les colonnes 
+je suis le processus 12 avec le rang 0 pour les lignes et 3 pour les colonnes 
+je suis le processus 8 avec le rang 0 pour les lignes et 2 pour les colonnes 
+je suis le processus 4 avec le rang 0 pour les lignes et 1 pour les colonnes 
+je suis le processus 14 avec le rang 2 pour les lignes et 3 pour les colonnes 
+je suis le processus 10 avec le rang 2 pour les lignes et 2 pour les colonnes 
+je suis le processus 6 avec le rang 2 pour les lignes et 1 pour les colonnes 
+[bichette] (bcast) measured_wtime = 16.419910s (la=0) | 28.249634 Gflop/s
+[bichette] (g) measured_wtime = 9.762265s | 47.515250 Gflop/s
+GEMM is correct ( 0.00000e+00)
+je suis le processus 3 avec le rang 3 pour les lignes et 0 pour les colonnes 
+je suis le processus 2 avec le rang 2 pour les lignes et 0 pour les colonnes 
+je suis le processus 1 avec le rang 1 pour les lignes et 0 pour les colonnes 
+je suis le processus 0 avec le rang 0 pour les lignes et 0 pour les colonnes 
+je suis le processus 15 avec le rang 3 pour les lignes et 3 pour les colonnes 
+je suis le processus 11 avec le rang 3 pour les lignes et 2 pour les colonnes 
+je suis le processus 7 avec le rang 3 pour les lignes et 1 pour les colonnes 
+je suis le processus 14 avec le rang 2 pour les lignes et 3 pour les colonnes 
+je suis le processus 10 avec le rang 2 pour les lignes et 2 pour les colonnes 
+je suis le processus 6 avec le rang 2 pour les lignes et 1 pour les colonnes 
+je suis le processus 13 avec le rang 1 pour les lignes et 3 pour les colonnes 
+je suis le processus 9 avec le rang 1 pour les lignes et 2 pour les colonnes 
+je suis le processus 5 avec le rang 1 pour les lignes et 1 pour les colonnes 
+je suis le processus 12 avec le rang 0 pour les lignes et 3 pour les colonnes 
+je suis le processus 8 avec le rang 0 pour les lignes et 2 pour les colonnes 
+je suis le processus 4 avec le rang 0 pour les lignes et 1 pour les colonnes 
+[bichette] (bcast) measured_wtime = 15.384137s (la=0) | 30.151608 Gflop/s
+[bichette] (g) measured_wtime = 11.652837s | 39.806313 Gflop/s
+GEMM is correct ( 0.00000e+00)
+je suis le processus 3 avec le rang 3 pour les lignes et 0 pour les colonnes 
+je suis le processus 2 avec le rang 2 pour les lignes et 0 pour les colonnes 
+je suis le processus 1 avec le rang 1 pour les lignes et 0 pour les colonnes 
+je suis le processus 0 avec le rang 0 pour les lignes et 0 pour les colonnes 
+je suis le processus 15 avec le rang 3 pour les lignes et 3 pour les colonnes 
+je suis le processus 11 avec le rang 3 pour les lignes et 2 pour les colonnes 
+je suis le processus 7 avec le rang 3 pour les lignes et 1 pour les colonnes 
+je suis le processus 14 avec le rang 2 pour les lignes et 3 pour les colonnes 
+je suis le processus 10 avec le rang 2 pour les lignes et 2 pour les colonnes 
+je suis le processus 6 avec le rang 2 pour les lignes et 1 pour les colonnes 
+je suis le processus 13 avec le rang 1 pour les lignes et 3 pour les colonnes 
+je suis le processus 9 avec le rang 1 pour les lignes et 2 pour les colonnes 
+je suis le processus 5 avec le rang 1 pour les lignes et 1 pour les colonnes 
+je suis le processus 12 avec le rang 0 pour les lignes et 3 pour les colonnes 
+je suis le processus 8 avec le rang 0 pour les lignes et 2 pour les colonnes 
+je suis le processus 4 avec le rang 0 pour les lignes et 1 pour les colonnes 
+[bichette] (bcast) measured_wtime = 16.867823s (la=0) | 27.499487 Gflop/s
+[bichette] (g) measured_wtime = 9.994760s | 46.409968 Gflop/s
+GEMM is correct ( 0.00000e+00)
+je suis le processus 3 avec le rang 3 pour les lignes et 0 pour les colonnes 
+je suis le processus 2 avec le rang 2 pour les lignes et 0 pour les colonnes 
+je suis le processus 1 avec le rang 1 pour les lignes et 0 pour les colonnes 
+je suis le processus 0 avec le rang 0 pour les lignes et 0 pour les colonnes 
+je suis le processus 15 avec le rang 3 pour les lignes et 3 pour les colonnes 
+je suis le processus 11 avec le rang 3 pour les lignes et 2 pour les colonnes 
+je suis le processus 7 avec le rang 3 pour les lignes et 1 pour les colonnes 
+je suis le processus 14 avec le rang 2 pour les lignes et 3 pour les colonnes 
+je suis le processus 10 avec le rang 2 pour les lignes et 2 pour les colonnes 
+je suis le processus 6 avec le rang 2 pour les lignes et 1 pour les colonnes 
+je suis le processus 13 avec le rang 1 pour les lignes et 3 pour les colonnes 
+je suis le processus 9 avec le rang 1 pour les lignes et 2 pour les colonnes 
+je suis le processus 5 avec le rang 1 pour les lignes et 1 pour les colonnes 
+je suis le processus 12 avec le rang 0 pour les lignes et 3 pour les colonnes 
+je suis le processus 8 avec le rang 0 pour les lignes et 2 pour les colonnes 
+je suis le processus 4 avec le rang 0 pour les lignes et 1 pour les colonnes 
+[bichette] (bcast) measured_wtime = 16.180052s (la=0) | 28.668417 Gflop/s
+[bichette] (g) measured_wtime = 14.609633s | 31.750041 Gflop/s
+GEMM is correct ( 0.00000e+00)
+je suis le processus 3 avec le rang 3 pour les lignes et 0 pour les colonnes 
+je suis le processus 2 avec le rang 2 pour les lignes et 0 pour les colonnes 
+je suis le processus 1 avec le rang 1 pour les lignes et 0 pour les colonnes 
+je suis le processus 0 avec le rang 0 pour les lignes et 0 pour les colonnes 
+je suis le processus 15 avec le rang 3 pour les lignes et 3 pour les colonnes 
+je suis le processus 11 avec le rang 3 pour les lignes et 2 pour les colonnes 
+je suis le processus 7 avec le rang 3 pour les lignes et 1 pour les colonnes 
+je suis le processus 14 avec le rang 2 pour les lignes et 3 pour les colonnes 
+je suis le processus 10 avec le rang 2 pour les lignes et 2 pour les colonnes 
+je suis le processus 6 avec le rang 2 pour les lignes et 1 pour les colonnes 
+je suis le processus 13 avec le rang 1 pour les lignes et 3 pour les colonnes 
+je suis le processus 9 avec le rang 1 pour les lignes et 2 pour les colonnes 
+je suis le processus 5 avec le rang 1 pour les lignes et 1 pour les colonnes 
+je suis le processus 12 avec le rang 0 pour les lignes et 3 pour les colonnes 
+je suis le processus 8 avec le rang 0 pour les lignes et 2 pour les colonnes 
+je suis le processus 4 avec le rang 0 pour les lignes et 1 pour les colonnes 
+[bichette] (bcast) measured_wtime = 17.183550s (la=0) | 26.994217 Gflop/s
+[bichette] (g) measured_wtime = 10.327199s | 44.916000 Gflop/s
+GEMM is correct ( 0.00000e+00)
