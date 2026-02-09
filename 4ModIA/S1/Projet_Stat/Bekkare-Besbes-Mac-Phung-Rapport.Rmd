@@ -1,0 +1,1004 @@
+---
+title: "Projet d'étude d'Analyse de données et d'Eléments de modélisation statistique"
+fig.align: 'center'
+bibliography: "exbiblio.bib"
+output:
+  pdf_document:
+    extra_dependencies: ["float"]
+    toc : TRUE
+    toc_depth : 2
+    number_section : TRUE
+  word_document: default
+date: "2024-02-02"
+author: "Bekkare Aziza, Besbes Ines, Mac Yanis, Phung Anh Minh"
+always_allow_html: yes
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE, echo=F}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+options(ggrepel.max.overlaps = Inf)
+local({
+  hook_inline = knitr::knit_hooks$get('inline')
+  knitr::knit_hooks$set(inline = function(x) {
+    res = hook_inline(x)
+    if (is.numeric(x)) sprintf('$%s$', res) else res
+  })
+})
+```
+
+```{r, echo=F, include=FALSE}
+library(FactoMineR)
+library(mt)
+library(ggplot2)
+library(gridExtra)
+library(corrplot)
+#library(leaflet.providers) #remplace ggmap
+library(leaflet)
+library(leaps)
+library(bestglm)
+library(MASS)
+library(factoextra)
+library(stringr)
+library(glmnet)
+library(clusterSim)
+library(circlize)
+library(mclust)
+library(viridis)
+library(funFEM)
+library(dplyr)
+library(plotly) 
+library(coefplot)
+library(comprehenr)
+set.seed(1234) #figer l'aléa pour les méthodes comme kmeans
+```
+# Introduction
+
+Dans ce projet, on étudie des données issues du site web Atmo-Occitanie. Le but est d'analyser les émissions de 10 différents polluants atmosphériques des EPCI (Etablissements Publics de Coopération Intercommunale) de la région Occitanie de 2014 à 2019.  
+A l'aide d'une approche d'analyse de données et de statistique, on cherche à expliquer par différents facteurs les tendances d'émissions de ces polluants au fil des années.
+
+# Statistiques descriptives
+
+Afin de découvrir les données et de mieux les appréhender, on commence par effectuer des statistiques descriptives sur le jeu mis à notre disposition. 
+
+```{r, echo=F}
+data = read.csv("Data-projetmodIA-2324.csv", header = TRUE)
+```
+Le jeu de données compte 984 lignes et 36 colonnes, soit 36 variables et 984 individus. On y retrouve les émissions de polluants au format *numeric*.   
+En s'intéressant aux effectifs, on s'aperçoit que l'on a le même nombre d'EPCI par année, et qu'il y a tous les départements également donc il n'y a pas de données manquantes.
+
+```{r, echo=F, eval=F}
+head(data)
+#summary(data)
+```
+
+```{r, echo=F, eval=F}
+#attributes(data)
+```
+
+```{r, echo=F, eval=F}
+#str(data)
+```
+
+On commence dans un premier temps par convertir nos variables qualitatives en facteur, grâce à la fonction $as.factor$.
+
+```{r, echo=F}
+data$lib_epci = as.factor(data$lib_epci)
+data$TypeEPCI = as.factor(data$TypeEPCI)
+data$nomdepart = as.factor(data$nomdepart)
+data$annee_inv = as.factor(data$annee_inv)
+```
+
+```{r, echo=F, eval=F}
+#summary(data)
+which(colnames(data) == "latit")
+```
+
+On observe que certains EPCI sont à cheval entre plusieurs départements. Cependant, ils sont tous bien situés en Occitanie.
+
+On s'intéresse maintenant aux quatre variables qualitatives : *libEPCI*,
+*TypeEPCI*, *nomdepart* et *anne_inv*. Ces dernières doivent être considérées
+comme des facteurs à plusieurs modalités.
+
+```{r, echo = F, fig.cap="Répartition des types d'EPCI", fig.align='center', fig.width=3, fig.height=3}
+quan = as.vector(table(data$TypeEPCI))/nrow(data)
+df <- data.frame(group = levels(data$TypeEPCI), TypeEPCI = quan)
+ggplot(df, aes(x = "", y = TypeEPCI, fill = group)) + geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) + theme(legend.position = "bottom")
+```
+
+On observe que les types d'EPCI sont majoritairement $CC$ ou $CA$, et
+qu'il y a très peu d'EPCI de type $CU$ ou $Métropole$. On pourra
+éventuellement chercher à fusionner plus tard ces 2 types d'EPCI avec
+les types $CC$ ou $CA$ selon les résultats de notre Analyse en
+Composantes Principales.
+
+### Etude des polluants
+
+```{r, echo = F, fig.cap="Représentation des données des polluants avant (Gauche) et après (Droite) application de la fonction logarithme", fig.width=4, fig.height=4, fig.show='hold'}
+col_polluant = 4:14
+polluant = log(data[, col_polluant])
+boxplot(data[,col_polluant])
+boxplot(polluant)
+```
+On observe que nos valeurs sont trop dissymétriques, qu'il y a beaucoup
+d'outliers, et que les valeurs de $co_kg$ ont une plus grande magnitude
+que les autres et par conséquent écrasent les autres. La variable
+$co_kg$ risque donc de prendre une performance trop importante par
+rapport aux autres lors de l'ACP. Il faut donc transformer nos données.
+Ici, on opte pour une transformation log pour obtenir des distributions
+symétriques d'ordre de grandeur similaire avec beaucoup moins
+d'outliers, ce qu'on observe effectivement sur le second boxplot. 
+```{r, echo = F}
+# Tentative d'afficher les 2 boxplots côte à côte
+# g1 = ggplot(na.omit(data), aes(x = data[,col_polluant])) + geom_boxplot()
+# g2 = ggplot(data, aes(x = log(data[,col_polluant]))) + geom_boxplot()
+# grid.arrange(g1,g2,ncol = 2)
+```
+
+Ces résultats sont également visibles lorsqu'on trace les histogrammes des polluants avant et après transformation.
+On remarque que cette transformation logarithmique des polluants rend la distribution de ces données plus symétrique et plus proche d'une distribution gaussienne.
+
+```{r, echo = F, fig.cap="Histogrammes des données des polluants avant (Gauche) et après (Droite) application de la fonction logarithme", fig.width=6, fig.height=3}
+g1 <- ggplot(data, aes(x =data[,4])) + ylab("Effectif")  + geom_histogram(bins = 39)+  xlab("")
+g2 <- ggplot(polluant, aes(x =log(polluant[,1]))) + ylab("Effectif") + geom_histogram(bins = 39)+ xlab("")
+grid.arrange(g1,g2,ncol = 2, bottom = NULL)
+```
+
+```{r, eval=F, echo=F}
+# for (i in 1:11) {
+#   hist(polluant[,i])
+# }
+```
+
+```{r correlations,echo = F, fig.cap="Représentation de la matrice de corrélation avec des ellipses", fig.width=4.5, fig.height=4.5 }
+# corrplot(cor(polluant), method="ellipse", tl.cex = 0.7)
+```
+
+```{r, echo=F,warning=FALSE, message = F, fig.cap="Regression entre co2_t et ges_teqco2 ", fig.height=3,fig.width=5}
+# ggplot(polluant, aes(x = ges_teqco2, y = co2_t)) + geom_point() + geom_smooth(method = lm,
+#     se = FALSE)
+```
+
+```{r, echo=F,fig.cap= "Relation entre variables qualitatives avec nox_kg" , fig.height=4, fig.width=6}
+# g3 <- ggplot(data, aes(x = TypeEPCI, y = log(polluant[,1]))) + ylab("log(nox_kg)") + geom_boxplot()
+
+# g4 <- ggplot(data, aes(x = annee_inv, y = log(polluant[,1]))) + ylab("log(nox_kg)") + geom_boxplot()
+# grid.arrange(g3,g4, ncol = 2)
+```
+
+# Analyse en composantes principales
+
+On va à présent réaliser une analyse en composantes principales afin de
+réduire les dimensions de notre jeu de données. On utilise la
+fonction **PCA** du package **FactoMineR** pour afficher le graphe des
+individus et celui des variables.
+
+```{r, echo=F, fig.show='hold', fig.width=5, fig.height=5, fig.cap="Résultats de l'ACP" }
+dataACP <- data.frame(polluant, data$annee_inv, data$TypeEPCI)
+res.acp <- PCA(dataACP, quali.sup = c(12, 13) ,graph = FALSE, axes = c(1,2), scale.unit = TRUE)
+fviz_pca_ind(res.acp, axes=c(1,2),  geom = c("point"),  repel = FALSE, habillage = 13, 
+             legend.title = "Type EPCI")
+g2 = fviz_pca_var(res.acp, axes = c(1, 2), geom = c("arrow", "text"))
+# fviz_pca_biplot(res.acp, axes = c(1, 2), geom = c("point"),  geom.var = c("arrow", "text"), habillage = 13)
+g3 = fviz_eig(res.acp)
+# boxplot(res.acp$ind$coord)
+grid.arrange(g2,g3,ncol=2)
+
+```
+
+Le graphe des variables permet d'interpréter les deux premières
+composantes principales en les écrivant comme une combinaison linéaire
+des variables originales. Notons $I = {ch4_t, nh3_kg, n2o_t}$ et
+$J = {nox_kg, so2_kg, pm10_kg, pm25_kg, co_kg, c6h6_kg, ges_teqco2, co2_t}$.\
+Le cercle des corrélations permet d'écrire : $PC1 = \alpha \cdot J$
+et $PC2 = \beta \cdot I$ où $\alpha$ et $\beta$ sont des poids positifs
+des variables. $PC1$ est donc proportionnel à la moyenne des variables
+dans J et $PC2$ à la moyenne des variables dans I. Le graphique des
+pourcentages d'inertie permet de conserver les deux premières
+composantes principales car elles représentent 88,95% de l'information
+contenue dans le jeu de données.\
+On remarque dans le graphe des individus qu'il y a des valeurs
+aberrantes. On va donc utiliser la fonction **pca.outlier** de la
+librairie **mt** qui utilise la distance de Mahalanobis afin de détecter
+les outliers. Cela suppose d'utiliser des données gaussiennes, ce qui
+est bien le cas ici.
+
+```{r, echo=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Détection des outliers avec la distance de Mahalanobis"}
+res.outlier <- pca.outlier(polluant)
+res.outlier$plot
+```
+
+Une fois les outliers détectés, on crée un nouveau jeu de données les
+excluant.
+
+```{r, echo=F}
+outlier<-res.outlier$outlier
+datawithout<-data[-c(outlier),]
+cleanpolluant = log(datawithout[, col_polluant])
+cleandata = cbind(datawithout[1:3], cleanpolluant, datawithout[15:36])
+```
+
+```{r, echo=F, fig.align='center', fig.cap="Graphe des individus avec les données nettoyées et transformées"}
+cleanACP <- data.frame(cleanpolluant, cleandata$annee_inv, cleandata$TypeEPCI)
+res.acp2 <- PCA(cleanACP, quali.sup = c(12, 13), graph=FALSE)
+plot(res.acp2, axes = c(1,2), choix = "ind", cex= 0.5, label = "quali", habillage=13)
+# plot(res.acp2, axes = c(1,2), choix = "ind", cex= 0.5, label = "quali", habillage=12)
+```
+
+On remarque que l'année n'a pas d'influence sur les deux premières
+dimensions. Cependant, le type d'EPCI impacte fortement la première
+dimension. A présent, on décide de regrouper les TypeEPCI $CA$, $CU$ et
+$Metropole$ à cause de la différence d'effectifs. On regroupe les types d'EPCI
+$CA$, $CU$ et $Metropole$ sous le sigle $CA$.
+
+```{r, echo=F}
+newcleandata = cleandata %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "CC", "CC")) %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "CA", "CA")) %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "CU", "CA")) %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "Metropole", "CA")) 
+
+newcleandata$TypeEPCI = as.factor(newcleandata$TypeEPCI)
+# summary(newcleandata)
+```
+
+# Analyse Linéaire Discriminante
+
+On effectue une analyse linéaire discriminante afin d'expliquer et
+prédire l'appartenance d'un individu à une classe à l'aide du reste des
+données. Il s'agit d'une ACP sur les centroïdes des classes avec une
+métrique de Mahalanobis. On utilise la LDA pour prédire le dépassement
+d'émission de méthane de 1000 tonnes par an et prédire le Type d'EPCI. 
+
+## Prédiction du dépassement de méthane de 1000 tonnes par an
+
+Dans un premier temps, on explore le dépassement d'émission de méthane de
+1000 t par an. On crée la variable *depSeuil* qui vaut 1 si le méthane
+dépasse 1000 t et 0 sinon. Ensuite, on divise le jeu de donnée en deux
+afin d'avoir un jeu d'entrainement *x_train* (80 % du jeu initial) et un
+de test *x_test* (20 % restant). On conserve seulement les variables
+numériques et la colonne que l'on veut prédire. On utilise la fonction
+**lda** qui calcule les coefficients de l'ACP. Avec le résultat de la
+LDA, on utilise la fonction **predict.lda** sur *x_test* et on obtient
+les prédictions de la variable *depSeuil*.
+
+```{r, echo=F}
+depSeuil<-as.numeric(newcleandata$ch4_t > log(1000))
+newcleandata[, "depSeuil"]<-depSeuil
+x_train<-newcleandata[1:800,-c(1,2,3,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34)]
+x_test<-newcleandata[801:970,-c(1,2,3,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34)]
+res.lda<-lda(x_train[, -14], grouping=x_train[, 14])
+# print(res.lda)
+predictions <- predict(res.lda, newdata=x_test[,-14])
+
+TrueSeuil<-newcleandata[801:970,37]
+TEB.lda = to_vec(for (i in 1:length(TrueSeuil)) (predictions$class[i]!=TrueSeuil[i]) )
+TEB = sum(as.numeric(TEB.lda))/length(TEB.lda)
+# table(predictions$class, x_test$depSeuil)
+# lda.plotdf<-data.frame(group=x_train[,14], lda=predict(res.lda)$x_test)
+#res.lda
+```
+
+Pour évaluer les performances de la LDA, on calcule le taux d'erreur de
+classification. On obtient un taux de `r TEB`. Le taux d'erreur est très
+faible donc cela implique que presque toutes les données d'entrainement ont étés bien classées.
+
+```{r, fig.cap="\\label{fig:dep}Résultats de LDA pour prédire le dépassement d’émission de méthane de 1000 t par an", echo=F, fig.align='center', fig.width=6, fig.height=3}
+results <- data.frame(
+  ch4_t = x_test$ch4_t,
+  depSeuil = as.factor(predictions$class)
+)
+
+ggplot(results, aes(x = ch4_t, fill = depSeuil)) +
+  geom_density(alpha=0.5) +
+  labs(fill="Dépassement du seuil")
+```
+
+Sur la figure
+\ref{fig:dep},
+on peut observer la densité de probabilité que l'individu dépasse le
+seuil de 1000 t par an en fonction de la quantité de *ch4_t*. On remarque que plus la quantité de méthane est élevée, plus il y a de chance que le seuil de 1000 tonnes soit dépassé. Cela est cohérent avec ce que l'on aurait prédit.
+
+```{r, echo=F}
+x_train<-newcleandata[1:800,-c(1,2,3,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,37)]
+x_test<-newcleandata[801:970,-c(1,2,3,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,37)]
+res.lda<-lda(x_train[, -12], grouping=x_train[, 12])
+# print(res.lda)
+predictions <- predict(res.lda, newdata=x_test[,-12])
+
+TrueType<-newcleandata[801:970,"TypeEPCI"]
+TEB.lda = to_vec(for (i in 1:length(TrueType)) (predictions$class[i]!=TrueType[i]) )
+TEB = sum(as.numeric(TEB.lda))/length(TEB.lda)
+```
+Dans ce cas, on obtient un taux de `r TEB`. Le taux d'erreur est à nouveau
+très faible donc la prédiction est satisfaisante.
+
+## Prédiction du type d'EPCI
+```{r, echo=F}
+moypolluant=to_vec(for (i in 801:970) sum(cleanpolluant[i,])/11 )
+x_test[, "moypolluant"]<-moypolluant
+```
+
+Afin de représenter les résultats de la LDA pour prédire le type d'EPCI,
+on crée une nouvelle variable *moypolluant* qui est la moyenne des
+quantité de polluant pour chaque individu.
+
+```{r, echo=F, fig.cap="\\label{fig:lda2}Résultats de LDA pour prédire le type EPCI en fonction de la moyenne des polluants",fig.align='center', fig.width=6, fig.height=3}
+results <- data.frame(
+  moypolluant = x_test$moypolluant,
+  TypeEPCI = as.factor(predictions$class)
+)
+
+ggplot(results, aes(x = moypolluant, fill = TypeEPCI)) +
+  geom_density(alpha=0.5) +
+  labs(fill="Type EPCI")
+```
+
+Sur la figure
+\ref{fig:lda2}
+on observe la densité de probabilité d'appartenir à un type d'EPCI. On
+remarque que plus la moyenne des quantités de polluants est élevée plus
+le type d'EPCI à des chances d'être CA.
+
+```{r, echo=F}
+x_train<-cleandata[1:800,-c(1,2,3,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,37)]
+x_test<-cleandata[801:970,-c(1,2,3,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,37)]
+res.lda<-lda(x_train[, -12], grouping=x_train[, 12])
+predictions <- predict(res.lda, newdata=x_test[,-12])
+lda.plotdf<-data.frame(group=x_train[,12], lda=predict(res.lda)$x)
+
+TrueType<-cleandata[801:970,"TypeEPCI"]
+TEB.lda = to_vec(for (i in 1:length(TrueType)) (predictions$class[i]!=TrueType[i]) )
+TEB = sum(as.numeric(TEB.lda))/length(TEB.lda)
+```
+
+```{r, echo=F,fig.cap="Résultats de la LDA pour prédire le type d'EPCI avec 4 modalités", eval=F}
+library(ggplot2)
+
+# Assuming you have three unique groups in your data
+ggplot(lda.plotdf) +
+  geom_point(aes(x = lda.plotdf$lda.LD1, 
+                 y = lda.plotdf$lda.LD2,
+                 col = factor(group)),
+             size = 4) +
+  labs(color = "Groups") +
+  scale_color_manual(values = c("#3b5896", "#e3548c", "#ffa600", "#4285F4")) +
+  theme_classic() +
+  theme(axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16),
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 18)) +
+  xlab("LD1") +
+  ylab("LD2")
+```
+
+Pour la LDA avec 4 facteurs, certaines classes ont moins d'individus
+donc on entraine moins. Les résultats sont donc meilleurs lorsque l'on regroupe les types d'EPCI.
+
+```{r, echo=F}
+# ggplot(lda.plotdf) +
+#   geom_point(aes(x = res.lda$LD1,
+#                  y = res.lda$LD2,
+#                  col = factor(group)),
+#              size = 4) +
+#   labs(color = "Groupes") +
+#   scale_color_manual(values = c("#3b5896", "#e3548c", "#ffa600")) +
+#   theme_classic() + # configuration de la figure pour la rendre plus belle
+#   theme(axis.title = element_text(size = 18),
+#         axis.text = element_text(size = 16),
+#         legend.title = element_text(size = 20),
+#         legend.text = element_text(size = 18))
+```
+
+# Clustering
+Dans cette partie, on cherche une classification de nos données avec plusieurs méthodes différentes, puis on les compare entre elles.
+
+Pour améliorer la classification de nos données, on a décidé de les utiliser après avoir retiré les valeurs aberrantes (outliers), car la présence de ces dernières affecte significativement la performance des algorithmes de classification dans la création de clusters. En éliminant les outliers, on vise à améliorer substantiellement la qualité des clusters générés. 
+
+Par ailleurs, on effectue une classification sur les données sur une année uniquement, car après l'étude des statistiques descriptives, on s'est rendus compte qu'il n'y avait pas de grande variation des données d'une année à l'autre. On choisit l'année 2019 arbitrairement, car c'est l'année la plus récente donc à priori la plus significative aujourd'hui, on aurait également pu envisager de moyenner nos données sur chaque année.
+
+```{r, echo = F}
+dataclust <- subset(newcleandata, annee_inv == 2019)
+polluant2019 = log(dataclust[, col_polluant])
+```
+
+## Classification par Kmeans
+
+Dans un premier temps, on propose de rechercher une classification des données par la méthode des K-means. On utilise les critères d'inertie intra-classe et le critère silhouette pour déterminer le nombre de classes à retenir.  
+
+```{r kmeans inertie intra, echo = F, fig.cap="Critère d'inertie intraclasse pour la méthode K-means"}
+#methode kmeans
+
+#méthode d'inertie intra
+Kmax<-15
+reskmeanscl<-matrix(0,nrow=nrow(polluant2019),ncol=Kmax-1)
+Iintra<-NULL
+for (k in 2:Kmax){
+  resaux<-kmeans(polluant2019,k)
+  reskmeanscl[,k-1]<-resaux$cluster
+  Iintra<-c(Iintra,resaux$tot.withinss)
+}
+
+df<-data.frame(K=2:15,Iintra=Iintra)
+gint = ggplot(df,aes(x=K,y=Iintra))+geom_line()+geom_point()+xlab("Nombre de classes")+ylab("Inertie intraclasse")
+```
+
+
+
+```{r, echo = F, fig.cap="\\label{fig:kmeans}Critères Silhouette et intra-classe pour la méthode K-means",fig.align='center'}
+
+#critère silhouette
+Silhou<-NULL
+for (k in 2:Kmax){
+   aux<-silhouette(reskmeanscl[,k-1], daisy(polluant2019))
+   Silhou<-c(Silhou,mean(aux[,3]))
+}
+
+df<-data.frame(K=2:Kmax,Silhouette=Silhou)
+gsil = ggplot(df,aes(x=K,y=Silhouette))+
+  geom_point()+
+  geom_line()+theme(legend.position = "bottom")
+
+
+grid.arrange(gint,gsil,ncol=2)
+```
+Sur la figure \ref{fig:kmeans}, on observe un coude pour 5 classes. On retient une classification à 5 classes avec le critère d'inertie intra-classe.  
+
+D'autre part, on observe un premier changement de pente à 2 classes. On retient donc une classification à 2 classes avec le critère silhouette.  
+
+```{r,echo = F}
+reskmeans5<-kmeans(polluant2019, 5) #classification choisie par inertie intra
+reskmeans2<-kmeans(polluant2019,2) #classification choisie par le critère silhouette
+```
+
+```{r, echo = F, fig.cap="Visualisation des classes obtenues par inertie intra sur les plans de l'acp"}
+f1 = fviz_cluster(reskmeans5,polluant2019, geom = c('point'))
+```
+
+```{r, echo = F, fig.cap="Visualisation des classes obtenues par silhouette sur les plans de l'acp", fig.width=8, fig.height=4}
+f2 =fviz_cluster(reskmeans2,polluant2019, geom = c('point'))
+grid.arrange(f1,f2,ncol=2)
+```
+
+```{r, echo = F, fig.cap="Tracé des Si", fig.width=4, fig.height=3, fig.align='center'}
+aux<-silhouette(reskmeanscl[,1], daisy(polluant2019)) #2 classes retenues par le critère silhouette
+fviz_silhouette(aux)+theme(plot.title = element_text(size =9)) #tracé des Si
+```
+
+On obtient une classification peu fiable avec le critère silhouette, le Si moyen est faible et la forme du Si de la classe 2 est loin d'être rectangulaire, la classification à 2 classes par kmeans ne donne donc pas de résultat très satisfaisant.  
+
+```{r, echo=F}
+adjustedRandIndex(reskmeans2$cluster,reskmeans5$cluster)
+table(reskmeans2$cluster,reskmeans5$cluster)
+```
+Les individus de la classe 1 de la classification par K-means à 2 classes se retrouvent répartis dans les classes 1, 2 et 4 de la classification par K-means avec 5 classes. Les individus de la classe 2 se retrouvent dans les classes restantes.  
+
+```{r, echo=F}
+adjustedRandIndex(reskmeans5$cluster,dataclust$TypeEPCI)
+adjustedRandIndex(reskmeans2$cluster,dataclust$TypeEPCI)
+
+table(reskmeans5$cluster,dataclust$TypeEPCI)
+```
+
+Il ne semble pas y avoir de lien dans la classification par K-means avec 5 et 2 classes entre le type d'EPCI et les individus dans chaque classe.  
+  
+On verra lors de nos recherches de classification par modèle de mélange qu'en réalité les modèles diagonaux et sphériques ne sont pas forcément très adaptés à nos données. La méthode K-means reposant sur la notion de distance euclidienne et ne pouvant pas faire de séparation non convexe, n'est peut-être pas adaptée à nos données.  
+
+## Classification hiérarchique
+
+Dans cette partie, on propose de rechercher une classification de nos données par une méthode de classification hiérarchique. On utilise les critères de Calinski-Harabasz et le critère silhouette pour déterminer le nombre de classes à retenir. On compare également des méthodes différentes, notamment celles utilisant le lien moyen et la méthode de Ward.  
+
+### Méthode du lien moyen
+
+On commence par étudier la méthode utilisant le lien moyen.
+$$
+D(C_k, C_{k'})=\frac{1}{|C_k| |C_{k'}|}\sum_{i \in C_k} \sum_{l \in C_{k'}} d(x_i, x_l)\\
+$$
+
+```{r, echo = F}
+# classification hiérarchisée
+d <- dist(polluant2019, method = "euclidean")
+hclustaverage<-hclust(d, method = "average")
+```
+
+```{r, echo = F, fig.cap="Critère CH pour le lien moyen", fig.width=4.5, fig.height=4, warning = F, message = F, fig.align='center'}
+# Calinski-habarasz
+
+CH<-NULL
+Kmax<-15
+for (k in 2:Kmax){
+  CH<-c(CH,index.G1(polluant2019,cutree(hclustaverage, k = k)))
+}
+daux<-data.frame(NbClust=2:Kmax,CH=CH)
+ggplot(daux,aes(x=NbClust,y=CH))+geom_line()+geom_point()
+```
+
+En maximisant le critère de Calinski-Habarasz sur une classification hiérarchique utilisant une méthode du lien moyen, on obtient une classification avec 3 classes.  
+
+```{r, echo = F, fig.align='center',fig.width=8, fig.height=3, fig.cap="Dendogramme avec le lien moyen"}
+resCAH3 <- cutree(hclustaverage, k = 3)
+fviz_dend(hclustaverage, k = 3)
+table(resCAH3)
+```
+### Méthode de Ward
+
+On étudie maintenant les classifications obtenues par la méthode de Ward.
+
+$$ 
+D(C_k, C_{k'})=\frac{|C_k| |C_{k'}|}{|C_k|+|C_{k'}|} d(m_k,m_{k'})^2
+$$ 
+
+
+```{r, echo = F}
+d <- dist(polluant2019, method = "euclidean" )
+hward<-hclust(d,method = "ward.D2")
+```
+
+```{r, echo = F, warning = F, fig.cap="Critère CH pour méthode de Ward", fig.width=4.5, fig.height=4, fig.align='center'}
+# Calinski-habarasz
+#sur les données transformées
+CH<-NULL
+Kmax<-15
+for (k in 2:Kmax){
+  CH<-c(CH,index.G1(polluant2019,cutree(hward, k = k)))
+}
+daux<-data.frame(NbClust=2:Kmax,CH=CH)
+ggplot(daux,aes(x=NbClust,y=CH))+geom_line()+geom_point()
+```
+
+En maximisant le critère de Calinski-Habarasz sur une classification hiérarchique utilisant une méthode de Ward, on obtient une classification avec 2 classes.  
+
+```{r,echo = F, fig.align='center', fig.width=8, fig.height=3, fig.cap="Dendogramme avec le lien Ward"}
+resCAH2 <- cutree(hward, k = 2)
+fviz_dend(hward, k = 2)
+```
+```{r, echo=F}
+table(resCAH2, resCAH3)
+adjustedRandIndex(resCAH2,resCAH3)
+```
+La classification resCAH3 est quasiment la même que la classification resCAH2 car on a seulement ajouté 2 éléments dans la classe 3 de resCAH3.
+
+
+```{r, echo=F}
+table(resCAH2,dataclust$TypeEPCI)
+adjustedRandIndex(resCAH2,dataclust$TypeEPCI)
+
+table(resCAH3, dataclust$TypeEPCI)
+adjustedRandIndex(resCAH3, dataclust$TypeEPCI)
+```
+
+On aurait pu imaginer que nos classes feraient la différence entre nos types d'EPCI en séparant les EPCI du type CA et CC mais ce n'est en fait pas le cas.  
+
+```{r, echo = F, fig.cap="Critère Silhouette pour la méthode de Ward", fig.width=4.5, fig.height=4, fig.align='center'}
+# critère silhouette
+S<-NULL
+Kmax<-20
+for (k in 2:Kmax){
+  S<-c(S,index.S(d,cutree(hward, k = k)))
+}
+daux<-data.frame(NbClust=2:Kmax,S=S)
+ggplot(daux,aes(x=NbClust,y=S))+geom_line()+geom_point()
+```
+
+En cherchant une nouvelle classification avec le critère silhouette, on obtient la même que celle obtenue avec le critère de Calinski-Habarasz.  
+
+```{r, echo=F}
+adjustedRandIndex(reskmeans5$cluster,resCAH2)
+adjustedRandIndex(reskmeans5$cluster,resCAH3)
+adjustedRandIndex(reskmeans2$cluster,resCAH2)
+adjustedRandIndex(reskmeans2$cluster,resCAH3)
+table(reskmeans2$cluster, resCAH3)
+```
+
+La classification obtenue par K-means avec 2 classes semble se rapprocher de la classification hiérarchique avec 2 et 3 classes car on a un adjusted Rand Index d'environ 0.81 qui est très proche de 1. Il semblerait que l'une soit une simplification de l'autre. Les autres classifications ne se rapprochent pas l'une de l'autre autrement.  
+
+
+## Classification par modèle de mélange
+Pour finir, on étudie les classifications obtenues par modèle de mélange. Pour déterminer le nombre de classes à retenir, on utilise les critères BIC et ICL.  
+
+
+```{r, echo = F, fig.cap="Critère BIC pour tout modèle de mélange", fig.width=4.5, fig.height=4, , warning = F, message = F, fig.align='center'}
+resBICpolluant = Mclust(polluant2019, G = 1:20)
+fviz_mclust(resBICpolluant,what=c("BIC"))
+summary(resBICpolluant)
+```
+Tous les modèles de mélange diagonaux et sphériques sont complètement incompatibles avec nos données au vu du tracé de notre critère BIC. On conserve le modèle de mélange VVE à 5 classes.  
+
+```{r, echo = F,fig.width=4.5, fig.height=4, fig.align='center', fig.cap="Visualisation des classes obtenues dans le premier plan de l'ACP"}
+# Visualisation du clustering
+fviz_cluster(resBICpolluant, geom = c("point"))
+```
+On obtient en effet des classes qui ne sont plus diagonales ou sphériques.  
+
+```{r, echo = F, fig.width=7, fig.height=3, fig.align='center',fig.cap="Boxplots des probabilités d'appartenance maximale"}
+# Boxplot des probabilités a posteriori maximales
+Aux<-data.frame(label=paste("Classe", resBICpolluant$classification, sep=""), proba=apply(resBICpolluant$z, 1,max))
+ggplot(Aux,aes(x=label,y=proba))+geom_boxplot()
+```
+On observe que les boxplots sont très serrés et très proches de 1. Il semblerait donc que la plupart des individus aient été attribués à la classe qui leur correspond. Il y a quelques outliers qui sont du au chevauchement entre les classes, mais globalement chaque individu semble avoir été bien classé.  
+
+```{r, echo = F}
+resICLpolluant<-mclustICL(polluant2019,G = 2:20, modelNames = c("VVV","EVV","VEV","EEV","VVE","EVE","VEE","EEE")) #sans les modèles diagonaux ou sphériques
+summary(resICLpolluant)
+```
+Le critère ICL et le critère BIC proposent 5 classes et le même type de modèle VVE que pour le critère BIC, les classifications retenues sont donc les mêmes.  
+
+```{r, echo=F}
+adjustedRandIndex(resBICpolluant$classification, reskmeans5$cluster)
+adjustedRandIndex(resBICpolluant$classification, resCAH3)
+adjustedRandIndex(resBICpolluant$classification, resCAH2)
+adjustedRandIndex(resBICpolluant$classification, reskmeans2$cluster)
+```
+Comme prévu, les classifications que l'on a obtenu par les méthodes de K-means et classification hiérarchique ne se rapprochent pas de la classification que l'on a obtenu par modèle de mélange. Le modèle de mélange final obtenu n'étant pas sphérique, on avait peu de chances d'obtenir une classification similaire.  
+
+```{r, echo=F}
+adjustedRandIndex(resBICpolluant$classification, dataclust$TypeEPCI)
+table(resBICpolluant$classification, dataclust$TypeEPCI)
+```
+Pour toutes les classifications que l'on a obtenu, on obtient à priori pas de lien entre nos classes et le type d'EPCI. On peut donc imaginer que le type d'EPCI n'a pas d'incidence significative sur la concentration en polluant, ce qui tout de même pourrait être contre-intuitif.  
+
+## Visualiation sur une carte
+On décide à présent de visualiser les émissions de polluants dans les différents types d'EPCI. Pour ce faire, on utilise la librairie leaflet qui permet de créer une carte interactive.
+Dans un premier temps, on décide de visualiser la quantité des polluants dans les différents EPCI. On observe ( géographie demander).
+
+```{r, echo=F}
+plotmapquanti<-function(dataposition,varquanti){
+  pal <- colorNumeric(palette = "RdYlBu",domain = varquanti)
+  leaflet(dataposition) %>% 
+  addTiles() %>%
+  addCircleMarkers(radius = 3,color = pal(varquanti),stroke = FALSE, fillOpacity = 1)%>%
+  addLegend("bottomright", pal = pal, values = varquanti,
+    opacity = 1)
+}
+```
+
+```{r, echo=F}
+datapos = data[c(36,35)]
+colnames(datapos)[colnames(datapos) == "longit"] <- "longitude"
+colnames(datapos)[colnames(datapos) == "latit"] <- "latitude"
+plotmapquanti(dataposition=datapos,varquanti=rowMeans(cleanpolluant))
+```
+
+
+```{r, echo=F}
+plotmapquali<-function(dataposition,varquali){
+library(leaflet)
+factpal <- colorFactor(topo.colors(nlevels(varquali)), varquali)
+
+leaflet(dataposition) %>% 
+  addTiles() %>%
+  addCircleMarkers(radius = 3,color = factpal(varquali),stroke = FALSE, fillOpacity = 0.9)%>%
+  addLegend("bottomright", pal = factpal, values = varquali, opacity = 1)
+}
+```
+
+```{r, echo=F}
+plotmapquali(dataposition=datapos, varquali=as.factor(newcleandata$TypeEPCI))
+```
+
+
+
+# Modèle Linéaire
+
+## Le gaz à effet de serre en fonction des variables Type et années
+
+On souhaite expliquer l'émission du gaz à effet de serre *ges_teqco* en fonction des variables *typeEPCI* et *anne_inv*. On commence par
+le modéliser par un modèle d'ANOVA à 2 facteurs avec interactions.
+
+$$
+\left\{ \begin{array}{l} \text{$ges\_teqco2$}_{ij\ell} = \mu + \alpha_i + \beta_0 + \beta_1 \cdot \text{$TypeEPCI$}_i + \beta_2 \cdot \text{$annee\_inv$}_j + \beta_{12} \cdot \text{$TypeEPCI$}_i \times \text{$annee\_inv$}_j + \epsilon_{ij\ell}  \\\forall i = 1, \ldots, I ,  j = 1, \ldots, J ,  \ell = 1, \ldots, n_{ij}    \\ (\varepsilon_{ij\ell})\textrm{ i.i.d }\mathcal{N}(0,\sigma^2)  \end{array} \right.
+$$
+
+
+```{r, echo=F}
+#Avec interaction
+mod1inter <- lm(ges_teqco2~TypeEPCI*annee_inv, data=newcleandata)
+# summary(mod1inter)
+```
+
+Afin de tester la présence d'interactions, on écrit le modèle additif:
+$$
+\left\{ \begin{array}{l} \text{$ges\_teqco2$}_{ij\ell} = \mu + \alpha_i + \beta_0 + \beta_1 \cdot \text{$TypeEPCI$}_i + \beta_2 \cdot \text{$annee\_inv$}_j  + \epsilon_{ij\ell}  \\\forall i = 1, \ldots, I ,  j = 1, \ldots, J ,  \ell = 1, \ldots, n_{ij}    \\ (\varepsilon_{ij\ell})\textrm{ i.i.d }\mathcal{N}(0,\sigma^2)  \end{array} \right.
+$$
+
+```{r, echo=F}
+#Sans interaction
+mod1 <- lm(ges_teqco2~TypeEPCI + annee_inv, data=newcleandata)
+# summary(mod1)
+```
+
+On utilise la fonction **anova** sur les deux modèles évoqués précédemment.
+
+```{r, echo=F}
+anova1 = anova(mod1, mod1inter)
+anova1
+```
+
+La pvaleur est de `r anova1$pvalue` \>\> 0.05 donc on ne rejette pas le
+sous modèle au risque 5%. Il n'y a donc pas d'interactions entre les
+variables *typeEPCI* et *anne_inv*.
+
+$$
+\left\{ \begin{array}{l} \text{$ges\_teqco2$}_{ij} =   \beta_0 + \beta_1 \cdot \text{$TypeEPCI$}_i  + \epsilon_{ij\ell}  \\ \forall i = 1, \ldots, I  ,  j = 1, \ldots, n_{i}    \\ (\varepsilon_{ij})\textrm{ i.i.d }\mathcal{N}(0,\sigma^2)  \end{array} \right.
+$$
+
+
+```{r, echo=F}
+mod11 <- lm(ges_teqco2~TypeEPCI, data=newcleandata)
+# summary(mod11)
+anova2 = anova(mod11, mod1)
+anova2
+```
+
+
+
+```{r, echo=F}
+mod12 <- lm(ges_teqco2~annee_inv, data=newcleandata)
+# summary(mod12)
+anova(mod12, mod1)
+```
+
+
+On effectue en parallèle deux tests de Fisher de sous modèle pour tester
+la nullité des variables année et TypeEPCI. On observe que la pvaleur
+pour le premier test est `anova2$pvalue` \>\> 0.5 donc on ne rejette pas
+H0 au risque 5%. L'année n'a pas d'effet significarif sur le modèle. Le
+second test a une pvaleur `r anova(mod12, mod1)$pvalue` \< 2.2e-16 donc
+\<\< 0.05. On rejette H0 au risque 5% donc le type d'EPCI a un effet
+significatif sur le modèle.
+
+Regardons à présent si on peut également enlever le Type EPCI.
+
+$$
+\left\{ \begin{array}{l} \text{$ges\_teqco2$}_{ij} = \mu   + \epsilon_{ij}  \\ \forall i = 1, \ldots, I  ,  j = 1, \ldots, n_{i}    \\ (\varepsilon_{ij})\textrm{ i.i.d }\mathcal{N}(0,\sigma^2)  \end{array} \right.
+$$
+
+```{r, echo=F}
+mod1intercept <- lm(ges_teqco2~1, data=newcleandata)
+# summary(mod1intercept)
+anova(mod1intercept, mod1)
+```
+
+Cette fois ci la pvaleur est encore inférieure à 0.05 donc on rejette
+cette hypothèse de nullité de la variable TypeEPCI au risque 5%.
+
+Vérifions que le modèle avec seulement le Type d'EPCI est bien validé par
+rapport au modèle avec interactions.
+
+```{r, echo=F}
+anova3 = anova(mod11, mod1inter) 
+anova3
+```
+
+Le modèle est bien validé par rapport au modèle complet car on a une
+pvaleur égale à `r anova3$pvalue`.
+
+Pour confirmer nos résultats, on utilise un algorithme descendant de
+sélection de variable basé sur le critère BIC.
+
+```{r, echo=F}
+stepAIC(mod1inter, direction=c("backward"), trace=T, k=log(nrow(newcleandata)))
+```
+
+La sélection de variables confirme bien le modèle retenu:
+
+$$
+\left\{ \begin{array}{l} \text{ges\_teqco2}_{ij} = \beta_0 + \beta_1 \cdot \text{$TypeEPCI$}_i + \epsilon_{ij}  \\\forall i = 1, \ldots, I ,  j = 1, \ldots, n_{i}  \\ (\varepsilon_{ij})\textrm{ i.i.d }\mathcal{N}(0,\sigma^2)  \end{array} \right.
+$$
+
+Où $ges\_teqco_{ij}$ est la quantité de gaz à effet de serre du TypeEPCI i du jème individu.
+
+On visualise le graphe d'interactions :
+
+```{r, echo=F}
+par(mfrow=c(1,2)) 
+interaction.plot(newcleandata[,"TypeEPCI"],newcleandata[,"annee_inv"],
+newcleandata[,"ges_teqco2"],col=c(2,4),pch=c(18,24), main="Interaction plot",type="b",
+xlab="TypeEPCI",ylab="ges_teqco2",trace.label="annee_inv")
+interaction.plot(newcleandata[,"annee_inv"],newcleandata[,"TypeEPCI"],
+newcleandata[,"ges_teqco2"],col=c(2,4),pch=c(18,24), main="Interaction plot",type="b",
+xlab="annee_inv",ylab="ges_teqco2",trace.label="TypeEPCI") 
+```
+
+On observe que les courbes sont parallèles, il n'y a donc pas
+d'interaction entre les différents types d'EPCI.
+
+## Gaz à effet de serre en fonction de tous les autres polluants
+
+Dans cette partie, on s'intéresse à la relation entre la quantité de gaz
+à effet de serre en fonction de tous les polluants. On commence par la
+modéliser par un modèle de régression linéaire avec interactions entre
+les facteurs car nous étudions l'influence de variables quantitatives
+uniquement.
+
+```{r, echo = F}
+# avec interaction
+gespolluant <- lm(ges_teqco2 ~ .^2, data = cleanpolluant)
+bestmodelAIC = step(gespolluant,direction = "backward", trace = F) #AIC
+bestmodelBIC = step(gespolluant, direction="backward",k=log(nrow(cleanpolluant)),trace = F) #BIC
+bestmodelforward = step(gespolluant, direction = "forward") #AIC forward
+```
+
+```{r, eval = F, echo = F}
+# summary(bestmodelAIC)
+# summary(bestmodelBIC)
+# summary(bestmodelforward)
+```
+
+Avec une méthode forward on obtient le modèle complet avec interactions.
+Avec des méthodes backward, on obtient des sous-modèles du modèle avec
+interaction, le critère BIC choisissant un modèle étant sous-modèle de
+celui retenu par le critère AIC.
+
+```{r, eval = F, echo = F}
+anova(gespolluant,bestmodelAIC)
+anova(gespolluant,bestmodelBIC)
+```
+
+En effectuant un test de sous-modèle entre le modèle complet et le
+sous-modèle retenu par le critère BIC, on trouve une pvaleur de 0.1488.
+On ne rejette donc pas H0 au niveau 5%, et on peut travailler avec le
+sous-modèle retenu par le critère BIC.
+
+## Emission de méthane en fonction de l'ammoniac, le protoxyde d'azote, le type d'EPCI et l'année
+
+Dans cette partie, on s'intéresse à la relation entre l'émission de
+méthane en fonction de l'ammoniac, le protoxyde d'azote, le type d'EPCI
+et l'année. Pour cela, on va mettre en place un modèle d'analyse de la
+covariance car on veut expliquer une variable quantitave en fonction de
+variables qualitatives et quantitatives.
+
+Nous allons considérer les interactions et ainsi travailler avec le
+modèle singulier complet.
+
+```{r, echo=F}
+acpolluant<-lm(ch4_t ~ .^2, data = newcleandata[c(3, 10, 12, 14, 15)])
+# summary(acpolluant)
+```
+
+Afin de simplifier le modèle, on applique un algorithme de sélection
+descendante par le test de Fisher en utilisant les critères AIC et BIC.
+
+```{r}
+stepAIC(acpolluant,trace=F,direction="backward")
+stepAIC(acpolluant,trace=F,direction="backward",k=log(nrow(newcleandata)))
+```
+
+Au final, on obtient le même modèle simplifié suivant : 
+
+$$
+\left\{ \begin{array}{l} \text{$ch4\_t$}_{ijl} = \mu + \sum_{i=2015}^{2019} \beta_{\text{$inv$}_i} \times 1_{(\text{$annee\_inv$} = i)} + \beta_{\text{$nh3$}} \times \text{$nh3\_kg$} + \beta_{\text{$n2o$}} \times \text{$n2o\_t$} 
++ \sum_{j=1}^{4} \beta_{\text{$EPCI$}_j} \times 1_{(\text{$TypeEPCI$} = j)}
+\\+ \sum_{j=1}^{4} \beta_{\text{$nh3\_EPCI$}_j} \times \text{$nh3\_kg$} \times 1_{(\text{$TypeEPCI$} = j)} 
++ \beta_{\text{$nh3\_n2o$}} \times \text{$nh3\_kg$} \times \text{$n2o\_t$} 
+\\+ \sum_{j=1}^{4} \beta_{\text{$n2o\_EPCI$}_j} \times \text{$n2o\_t$} \times 1_{(\text{$TypeEPCI$} = j)}  + \varepsilon_{ijl},\\ \forall i=2015,\ldots,2019,j=1,\ldots,4, l = 1,\dots,n_{ij}.\\ (\varepsilon_{ijl})\textrm{ i.i.d }\mathcal{N}(0,\sigma^2) \end{array}\right.
+$$
+
+## Dépassement d'émission de méthane de 1000 t par an en fonction de l'ammoniac, le protoxyde d'azote, le type d'EPCI et l'année.
+
+On veut expliquer le dépassement d'émissions de méthane de 1000 t par an
+en fonction de l'ammoniac, le protoxyde d'azote, le type d'EPCI et
+l'année. Pour ce faire, on modifie la variable ch4_t, cette dernière
+prend la valeur 1 si elle est supérieure à 1000 tonnes, 0 sinon. On
+construit donc un modèle de régression logistique car la variable
+réponse est binaire.
+
+```{r, echo = F}
+cleandata<-data[-c(outlier),]
+cleandata = cleandata %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "CC", "CC")) %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "CA", "CA")) %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "CU", "CA")) %>%
+  mutate(TypeEPCI = str_replace(TypeEPCI, "Metropole", "CA")) 
+cleanpolluant = log(cleandata[, col_polluant]) # à garder car on le modifie en suite
+new_data = cleandata
+ch4_t <-cleanpolluant$ch4_t
+cleanpolluant$ch4_t = as.factor((cleanpolluant$ch4_t > log(1000)))
+new_data[, col_polluant] = cleanpolluant
+MLG_data = new_data[,colnames(new_data)%in% c("ch4_t","nh3_kg","n2o_t","TypeEPCI","annee_inv")]
+head(MLG_data)
+# 1 == True, 0 == False
+# summary(MLG_data)
+```
+
+On s'intéresse tout d'abord au modèle complet avec interactions.
+
+```{r, echo = F, message = F, warning = F}
+modeldepassement <- glm(ch4_t ~ .^2 , data = MLG_data, family = binomial("logit"))
+# summary(modeldepassement)
+```
+
+Afin de simplifier le modèle, on utilise les critères BIC et AIC.
+
+```{r, echo = F, warning = F, message = F}
+bestmodel = stepAIC(modeldepassement, trace = F)
+bestmodel2 = stepAIC(modeldepassement, direction="backward",k=log(nrow(cleanpolluant)),trace = F)
+```
+
+```{r,echo = F, eval = F}
+# summary(bestmodel)
+# summary(bestmodel2)
+```
+
+```{r, eval = F, include=F}
+anova(bestmodel, modeldepassement, test = "Chisq")
+```
+
+On commence par faire un test de sous modèle entre le modèle avec
+interactions et le modèle obtenu avec le critère AIC. On obtient une
+pvaleur de 0.5528 donc on ne rejette pas H0 au niveau 5% et on peut
+travailler avec le sous modèle **bestmodel**.
+
+```{r, echo=F, include=F}
+anova(bestmodel2, bestmodel, test = "Chisq")
+```
+
+On fait ensuite la même chose, avec les modèles obtenus avec les
+critères BIC et AIC. On obtient une pvaleur de ... donc on rejette H0 au
+risque 5%.
+
+Le sous-modèle retenu à la fin est donc **bestmodel**.
+
+# Régression régularisée 
+On va à présent utiliser une méthodes de régression régularisée sur les polluants. On les a déjà centrés et réduits. On veut expliquer le gaz à effet de serre en fonction de tous les autres polluants. On utilise donc la régression de Lasso car c'est celle qui fait la sélection de variables et qui rend le modèle plus interprétable. 
+```{r, echo=F}
+cleanpolluant$ch4_t=ch4_t
+```
+## Régression Lasso
+La régression Lasso est une méthode de régression linéaire qui inclut une pénalité de régularisation L1 sur les coefficients de régression. Cette pénalité a pour effet de réduire certains coefficients à exactement zéro, ce qui peut être utile pour la sélection de variables et pour produire des modèles plus simples et plus interprétables.
+
+Dans un premier temps, on ajuste une régression Lasso en faisant varier $\lambda$ sur une grille. On stockera le résultat dans la variable.
+
+```{r, echo=F,warning=FALSE, message=FALSE}
+tildeY=scale(cleanpolluant[,8],center=T,scale=T)
+tildeX=scale(cleanpolluant[,-8],center=T,scale=T)
+lambda_seq<-10^(seq(-4,4,0.01))
+fitlasso <- glmnet(tildeX, tildeY,alpha = 1, lambda = lambda_seq,family=c("gaussian"),intercept=F) 
+# summary(fitlasso)
+```
+On trace ensuite les chemins de régularisation de la régression Lasso qui montrent comment les coefficients de régression évoluent en fonction du paramètre de régularisation $\lambda$.
+Pour ce faire, on utilise le paramètre $\lambda$ qui contrôle l'intensité de la pénalité L1. En augmentant $\lambda$, on augmente la quantité de régularisation appliquée aux coefficients, ce qui peut conduire à plus de coefficients étant réduits à zéro.
+
+```{r, echo=F, warning=FALSE, message=FALSE}
+df=data.frame(lambda = rep(fitlasso$lambda,ncol(tildeX)), theta=as.vector(t(fitlasso$beta)),variable=rep(colnames(tildeX),each=length(fitlasso$lambda)))
+g3 = ggplot(df,aes(x=lambda,y=theta,col=variable))+
+  geom_line()+
+  theme(legend.position="bottom")+
+  scale_x_log10()
+```
+
+```{r, echo=F, fig.cap="Chemins de régularisation avec la régression Lasso"}
+lasso_cv <- cv.glmnet(tildeX, tildeY,alpha = 1, lambda = lambda_seq,family=c("gaussian"),intercept=F) 
+best_lambda <-lasso_cv$lambda.min
+lambda1se <- lasso_cv$lambda.1se
+g3=g3 + 
+  geom_vline(xintercept = best_lambda,linetype="dotted", color = "red")+
+  geom_vline(xintercept = lambda1se,linetype="dotted", color = "blue")+
+  scale_x_log10()
+g3
+```
+
+```{r,echo=F}
+print(best_lambda)
+print(lambda1se)
+```
+
+La valeur de $\lambda$ sélectionnée est : `lambda1se`.
+
+## Sous modèle 
+```{r, echo=F}
+extract.coef(lasso_cv, lambda = "lambda.min")
+```
+
+```{r, echo=F}
+extract.coef(lasso_cv, lambda = "lambda.1se")
+```
+Etant donné qu'on veut faire de la sélection de variables, on utilise lambda.1se car il annule plus de variables que le lambda.min. 
+
+# Conclusion
+Cette analyse des émissions de polluants en Occitanie, fondée sur les types d'EPCI sur cinq ans, pourrait ouvrir la voie à une étude plus vaste et détaillée à l'échelle nationale. En élargissant le champ d'investigation à toute la France et en prolongeant la période d'étude, tout en intégrant des variables supplémentaires telles que la densité de population, on pourrait obtenir une compréhension plus nuancée et complète des tendances de pollution. Cette approche élargie permettrait d'affiner les stratégies de réduction des émissions polluantes.
+Enfin, ce projet nous a surtout permis de mettre en application nos compétences techniques et de travailler sur un vrai jeu de données. 
