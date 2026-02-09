@@ -1,0 +1,10 @@
+FROM python:3.10-alpine
+
+WORKDIR /app
+COPY requirements_app.txt .
+RUN pip install --no-cache-dir -r requirements_app.txt
+COPY . .
+
+EXPOSE 7860
+CMD ["python", "app.py"]
+

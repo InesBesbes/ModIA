@@ -1,0 +1,25 @@
+FROM python:3.8
+
+WORKDIR /app
+COPY requirements_api.txt .
+RUN pip install --no-cache-dir -r requirements_api.txt
+
+# Installer gdown pour télécharger depuis Google Drive
+RUN pip install gdown
+
+# Télécharger les fichiers du drive
+RUN gdown --id 1Pe46Rd62Alfu_m6rtOcX5ERN5ymBh6CI -O /app/weights.pth
+RUN gdown --id 1Pu9kshWJkGxUGZsILWubM1kxBQGoeDnz -O /app/movie_db.pkl 
+RUN gdown --id 11yb7n-0AWo64EMbRsgb7O9rlus_r3NYl -O /app/vector_db.pkl
+RUN gdown --id 1xpiB3dcP9G7W2SR5PEGhpVFnKu2ksQwU -O /app/distilbert_index.ann
+RUN gdown --id 1w_A6FUIXdeGaotPEL6_hfAqNui0XsT8D -O /app/glove_index.ann
+RUN gdown --id 1v3_vab2ndgZo7aVnyFTMU5GX-sQNGPFA -O /app/bow_index.ann
+RUN gdown --id 1h7q7bgg38BKQ9GyBCiptrmU7JQElTNkI -O /app/tfidf_index.ann
+RUN gdown --id 15LnPZr77ZsmDHO8kuUlzVLk-wBD3uhDi -O /app/photo.jpg
+
+
+COPY . .
+
+EXPOSE 5000
+CMD ["python", "api.py"]
+
