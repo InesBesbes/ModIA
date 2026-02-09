@@ -1,0 +1,934 @@
+---
+title: "projet_weibull"
+output: html_document
+runtime: shiny
+date: "2024-11-22"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Analysis of Weibull intensity
+
+Let $(N(t))_{t \in \mathbb{R}}$, be a inhomogeneous Poisson process with
+intensity $\lambda(t)$. We denote $N(t)$ as the number of failures,
+which follows a $P(\int_0^t \lambda(x)dx)$ distribution. $$
+\lambda(s) = \frac{\beta}{\alpha}\left(\frac{s}{\alpha}\right)^{\beta - 1 }
+$$ We call this specific process a Weibull process with parameter
+$\alpha > 0$and $\beta > 0$. The Weibull process is ideal for modeling
+systems with aging or wear-out effects, such as reliability analysis of
+mechanical components, failure times in engineering systems, or survival
+times in biomedical studies. The Weibull process is particularly useful
+when event occurrences are influenced by time-dependent factors.
+
+We defined the intensity and the cumulative function.
+
+```{r}
+fct_wei_intensity <- function(x,a,b){return((b/a)*(x/a)**(b-1))}
+fct_wei_cumu <- function(x,a,b){return((x/a)**(b))}
+```
+
+## The impact of $\alpha$ and $\beta$ on the intensity
+
+We implemented a slider to interactively visualize the function
+
+```{r, echo=FALSE}
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel("Interactive curve of Weibull intensity"),
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("a", "Parameter alpha:", min = 1, max = 2000, value = 50),
+      sliderInput("b", "Parameter beta:", min = 0.1, max = 3, value = 0.9, step = 0.01)
+    ),
+    mainPanel(
+      plotOutput("plot")
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$plot <- renderPlot({
+    curve(fct_wei_intensity(x,input$a, input$b), from = 0, to = 10, col = "blue",
+          xlab = "Time", ylab = "Intensity")
+  })
+}
+
+shinyApp(ui = ui, server = server)
+
+```
+
+\
+Now, let $\alpha = 50$ and we vary $\beta$.
+
+```{r, echo=FALSE}
+library(ggplot2)
+
+alpha <- 50
+beta_values <- c(0.8,1, 1.5, 2, 3)
+t <- seq(0.01, 10, length.out = 100)
+
+data <- do.call(rbind, lapply(beta_values, function(beta) {
+  data.frame(
+    t = t,
+    beta = beta,
+    h_t = fct_wei_intensity(t, alpha, beta)
+  )
+}))
+
+
+plot <- ggplot(data, aes(x = t, y = h_t, color = as.factor(beta))) +
+  geom_line(linewidth = 1) +
+  labs(title = "Weibull intensity for differents β",
+       x = "Time",
+       y = "Intensity",
+       color = "β") +
+  theme_minimal() +
+  facet_wrap(~ beta, scales = "free_y")
+
+print(plot)
+
+```
+
+-   For $0 < \beta < 1$: The intensity function decreases over time.
+    This corresponds to a process where the probability of failure is
+    initially high but decreases as time progresses. It's the burn-in
+    phase or early life failures.\
+-   For $\beta = 1$: The intensity function is constant and equal to
+    $\frac{1}{\alpha}$. The failure rate is constant over time,
+    indicating no dependency on age or wear. Failures occur due to
+    random, external factors unrelated to system aging. This corresponds
+    to the useful life phase, where the system operates reliably with
+    random failures.\
+-   For $1 < \beta < 2$: The intensity function increases with time, but
+    at a decreasing rate. The failure rate starts to increase with time,
+    but at a diminishing rate. This represents the onset of wear and
+    degradation in the system. This is the transition phase from normal
+    operation to wear-out.\
+-   For $\beta = 2$: The intensity function increases linearly with
+    time, indicating that degradation occurs steadily as the system
+    ages. This represents the steady wear-out phase, where failures
+    occur more predictably due to aging.\
+-   For $\beta > 2$: The intensity function increases rapidly with time.
+    The failure rate increases rapidly with time, often due to
+    cumulative stress, material exhaustion, or critical failure points
+    being reached. This corresponds to the late wear-out phase, where
+    systems are close to failure.\
+
+If this time, we fixe $\beta$ and we vary $\alpha$, we observe that
+$\alpha$ controls the time scale of the process. We call it the scale
+parameter. Essentially, $\alpha$ influences the "spread" of the failure
+times. A larger $\alpha$ implies that the system is more robust or less
+likely to fail in the short term. In opposition, a smaller $\alpha$
+suggests a less reliable system that fails sooner, and this could
+correspond to components that are expected to wear out faster or
+experience issues more rapidly.
+
+# Parameters estimation
+
+Recall the log-likelihood formula:
+$$\mathcal{L}(\alpha, \beta) = N(t) \left[\log(\beta) - \beta \log(\alpha)\right] + (\beta - 1) \sum_{i=1}^{N(t)} \log(T_i) - \left(\frac{t}{\alpha}\right)^\beta $$
+Let's find $\hat{\alpha}, \hat{\beta}$ the criticals points of
+$\alpha, \beta$.
+
+For $\alpha$: $$
+\begin{align}
+\frac{\partial \mathcal{L}(\alpha, \beta)}{\partial \alpha} = 0 &\iff
+\frac{-\beta N(t)}{\alpha} + \frac{\beta t^\beta} {\alpha^{\beta + 1}} = 0 \\
+&\iff
+\frac{\beta t^\beta} {\alpha^{\beta + 1}} = \frac{\beta N(t)}{\alpha} \\
+&\iff
+\log\left(\frac{\beta t^\beta} {\alpha^{\beta + 1}}\right) = \log\left(\frac{\beta N(t)}{\alpha}\right) \text{, the terms are strictly positive} \\
+&\iff
+\log(\beta) + \beta\log(t) - (\beta + 1)\log(\alpha) = \log(\beta) + \log(N(t)) - \log(\alpha) \\
+&\iff
+\beta\log(t) - \beta\log(\alpha) = \log(N(t)) \\
+&\iff
+\log(\alpha) = \log(t) - \frac{\log(N(t))}{\beta}
+\end{align}
+$$
+
+For $\beta$:
+
+$$
+\begin{align}
+\frac{\partial \mathcal{L}(\alpha, \beta)}{\partial \beta} = 0 &\iff
+\frac{N(t)}{\beta} - \log(\alpha)N(t) + \sum_{i=1}^{N(t)} \log(T_i) - \left(\frac{t}{\alpha}\right)^\beta\log\left(\frac{t}{\alpha}\right) = 0 \\
+&\iff
+\frac{1}{\beta} = \log(\alpha)  - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\left(\frac{t}{\alpha}\right)^\beta\log\left(\frac{t}{\alpha}\right)\\
+\end{align}
+$$ We then deduce: $$ 
+\log(\hat{\alpha}) = \log(t) - \frac{1}{\hat{\beta}}\log(N(t))
+$$ We combine both formula to find a reduced formula of $\hat{\beta}$.
+
+$$
+\begin{align}
+\frac{1}{\hat{\beta}} &= \log(\hat{\alpha})  - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\left(\frac{t}{\hat{\alpha}}\right)^{\hat{\beta}}\log\left(\frac{t}{\hat{\alpha}}\right)\\
+&= \log(\hat{\alpha})  - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\left(\frac{t}{\hat{\alpha}}\right)^{\hat{\beta}}(\log(t) - \log(\hat{\alpha}))\\
+&= \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\left(\frac{t}{\hat{\alpha}}\right)^{\hat{\beta}}(\log(t) - \log(t) + \frac{1}{\hat{\beta}}\log(N(t))) \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\left(\frac{t}{\hat{\alpha}}\right)^{\hat{\beta}}\frac{1}{\hat{\beta}}\log(N(t)) \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\frac{1}{\hat{\beta}}\log(N(t)) \left(\frac{t}{\hat{\alpha}}\right)^{\hat{\beta}} \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\frac{1}{\hat{\beta}}\log(N(t)) \exp(\hat{\beta}(\log(t) - \log(\hat{\alpha}))) \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\frac{1}{\hat{\beta}}\log(N(t)) \exp(\hat{\beta} \frac{1}{\hat{\beta}} \log(N(t))) \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) + \frac{1}{N(t)}\frac{1}{\hat{\beta}}\log(N(t))N(t)\\
+&= \log(t) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i) \\
+\end{align}
+$$ Finally, we have: $$
+\log(\hat{\alpha}) = \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) \\
+\frac{1}{\hat{\beta}} = \log(t) - \frac{1}{N(t)}\sum_{i=1}^{N(t)} \log(T_i)
+$$ Let's compute the Hessian to check that we have local maxima.
+
+$$
+\begin{align}
+H[\mathcal{L}, \alpha, \beta] &= \begin{pmatrix}
+\frac{\beta N(t)}{\alpha^2} - \frac{\beta (\beta +1) t^{\beta}}{\alpha^{\beta + 2}} & \frac{-N(t)}{\alpha} + \frac{t^{\beta}}{\alpha^{\beta + 1}} + \frac{\beta \log(t)t^{\beta}}{\alpha^{\beta + 1}} - \frac{\beta t^{\beta} \log(\alpha)}{\alpha^{\beta + 1}} \\
+\frac{-N(t)}{\alpha} + \frac{t^{\beta}}{\alpha^{\beta + 1}} + \frac{\beta \log(t)t^{\beta}}{\alpha^{\beta + 1}} - \frac{\beta t^{\beta} \log(\alpha)}{\alpha^{\beta + 1}} & \frac{-N(t)}{\beta^2} - \log\left(\frac{t}{\alpha}\right)^2\left(\frac{t}{\alpha}\right)^{\beta} \\
+\end{pmatrix} \\
+&=
+\begin{pmatrix}
+\frac{\beta N(t)}{\alpha^2} - \frac{\beta (\beta +1) t^{\beta}}{\alpha^{\beta + 2}} & \frac{-N(t)}{\alpha} + \frac{t^{\beta}}{\alpha^{\beta + 1}} + \frac{\beta t ^{\beta}}{\alpha^{\beta + 1}}\log\left(\frac{t}{\alpha}\right) \\
+\frac{-N(t)}{\alpha} + \frac{t^{\beta}}{\alpha^{\beta + 1}} + \frac{\beta t ^{\beta}}{\alpha^{\beta + 1}}\log\left(\frac{t}{\alpha}\right) & \frac{-N(t)}{\beta^2} - \log\left(\frac{t}{\alpha}\right)^2\left(\frac{t}{\alpha}\right)^{\beta} \\
+\end{pmatrix} \\
+\end{align}
+$$ From the $\hat{\alpha}$ formula, we can deduce two equality. The
+first one: $$
+\begin{align}
+\log(\hat{\alpha}) = \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) &\iff \hat{\beta} \log(\hat{\alpha}) = \hat{\beta} \log(t) - \log(N(t)) \\
+&\iff \log(\hat{\alpha}^{\hat{\beta}}) = \log(t^{\hat{\beta}}) - \log(N(t)) \\
+&\iff \log(N(t)) = \log\left(\frac{t^{\hat{\beta}}}{\hat{\alpha}^{\hat{\beta}}}\right) \\
+&\iff N(t) = \frac{t^{\hat{\beta}}}{\hat{\alpha}^{\hat{\beta}}} \\
+&\iff \frac{\hat{\beta}N(t)}{\hat{\alpha}} = \frac{\hat{\beta} t^{\hat{\beta}}}{\hat{\alpha}^{\hat{\beta}+1}} \\
+\end{align}
+$$ And the second: $$
+\log(\hat{\alpha}) = \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) \iff \log\left(\frac{t}{\hat{\alpha}}\right) = \frac{1}{\hat{\beta}}\log(N(t))
+$$
+
+So, we can simplify the Hessian: $$
+\begin{align}
+H[\mathcal{L}, \hat{\alpha}, \hat{\beta}] &=
+\begin{pmatrix}
+- \frac{\hat{\beta}^2 t^{\hat{\beta}}}{\hat{\alpha}^{\hat{\beta} + 2}} & \frac{\hat{\beta} t ^{\hat{\beta}}}{\hat{\alpha}^{\hat{\beta} + 1}}\log\left(\frac{t}{\hat{\alpha}}\right) \\
+\frac{\hat{\beta} t ^{\hat{\beta}}}{\hat{\alpha}^{\hat{\beta} + 1}}\log\left(\frac{t}{\hat{\alpha}}\right) & \frac{-N(t)}{\hat{\beta}^2} - \frac{1}{\hat{\beta} ^2} \log(N(t))^2 \left(\frac{t}{\hat{\alpha}}\right)^{\hat{\beta}} \\
+\end{pmatrix} \\
+&=
+\begin{pmatrix}
+- \frac{\hat{\beta}^2 N(t)}{\hat{\alpha}^{2}} & \frac{N(t)}{\hat{\alpha}}\log(N(t)) \\
+\frac{N(t)}{\hat{\alpha}}\log(N(t)) & \frac{-N(t)}{\hat{\beta}^2}(1 + \log(N(t))^2)\\
+\end{pmatrix} \\
+\end{align}
+$$ Then, we compute the trace and determinant. $$
+Tr(H[\mathcal{L}, \hat{\alpha}, \hat{\beta}]) = - \frac{\beta^2 N(t)}{\hat{\alpha}^{2}} - \frac{N(t)}{\beta^2}(1 + \log(N(t))^2) < 0 \\
+\begin{align}
+det(H[\mathcal{L}, \hat{\alpha}, \hat{\beta}]) &= - \frac{N(t)^2}{\hat{\alpha}^{2}}(-1-\log(N(t))^2) - \frac{N(t)^2}{\hat{\alpha}^2}\log(N(t))^2 \\
+&= - \frac{N(t)^2}{\hat{\alpha}^{2}} [-1 - \log(N(t))^2 + \log(N(t))^2] \\
+&= \frac{N(t)^2}{\hat{\alpha}^{2}} > 0
+\end{align}
+$$ The determinant of our hessian is the product of eigenvalues. It is
+negative, that means $\hat{\alpha}$ and $\hat{\beta}$ are both minima or
+maxima. In addition, we have a negative trace. Hence,
+$(\hat{\alpha}, \hat{\beta})$ are locals maxima of the log-likelihood.
+They are our estimators of maximum likelihood of $(\alpha, \beta)$
+
+## Numerical check
+
+```{r, echo=FALSE}
+simulPPh <- function(lambda,Tmax)
+{
+N_tmax = rpois(1, lambda*Tmax)
+unif = sort(runif(N_tmax, 0, Tmax))
+return(unif)
+}
+
+simulPPi <- function(Tmax, M, a, b) {
+hpp = simulPPh(M, Tmax)
+unif = runif(length(hpp), 0, M)
+selected = (unif <= fct_wei_intensity(hpp, a, b))
+return(sort(hpp[selected]))
+}
+```
+
+We simulate four Weibull processes.
+
+```{r}
+#beta > 1
+Tmax=1000
+b=2.5
+a=1
+M = (b/a)*(Tmax/a)**(b-1)
+PPi1 = simulPPi(Tmax, M, a, b) 
+```
+
+```{r}
+#beta > 1
+Tmax=1000
+b=2.5
+a=30
+M = (b/a)*(Tmax/a)**(b-1)
+PPi3 = simulPPi(Tmax, M, a, b) 
+```
+
+```{r}
+#beta <= 1
+Tmax=1000
+b=0.8
+a=1
+M = 10000
+PPi2= simulPPi(Tmax, M, a, b)
+```
+
+```{r}
+#beta <= 1
+Tmax=1000
+b=0.8
+a=30
+M = 10000
+PPi4= simulPPi(Tmax, M, a, b)
+```
+
+We implement a function to compute our estimators.
+
+```{r}
+MLE <- function(PPi,Tmax)
+{
+  Nt = length(PPi)
+  mle_beta = 1/(log(Tmax) - (1/Nt)*sum(log(PPi)))
+  mle_alpha = Tmax*Nt**(-1/mle_beta)
+  return(c(mle_alpha,mle_beta))
+}
+```
+
+```{r, echo=FALSE}
+#beta > 1
+cat(sprintf("True values : (1, 2.5), estimated values : (%.5f, %.5f)\n", MLE(PPi1, Tmax)[1], MLE(PPi1, Tmax)[2]))
+
+#beta <= 1
+cat(sprintf("True values : (1, 0.8), estimated values : (%.5f, %.5f)\n", MLE(PPi2, Tmax)[1], MLE(PPi2, Tmax)[2]))
+
+#beta > 1
+cat(sprintf("True values : (30, 2.5), estimated values : (%.5f, %.5f)\n", MLE(PPi3, Tmax)[1], MLE(PPi3, Tmax)[2]))
+
+#beta <= 1
+cat(sprintf("True values : (30, 0.8), estimated values : (%.5f, %.5f)\n", MLE(PPi4, Tmax)[1], MLE(PPi4, Tmax)[2]))
+```
+
+We observe that we have a good estimation of $\beta$ and $\alpha$. It
+seems to be less accurate for $\alpha$ maybe because we approximate
+$\log(\alpha)$ instead of $\alpha$ directly and that we use
+$\hat{\beta}$ to compute $\hat{\alpha}$ but it is not a major
+difference.
+
+# Reliability estimation
+
+We aim to estimate the reliability of equipment at a given time $t$
+based on observations over the interval $[0, t]$. We can quantify this
+reliability by the number of failures that occurs within this interval.
+We denote $N(t)$ as the number of failures, which follows a
+$P(\Lambda(t))$ distribution with expectation $\Lambda(t)$.
+
+\
+
+However, we know that
+
+$$
+\Lambda(t) = \int_0^t \lambda(s) \, ds = \int_0^t \frac{\beta}{\alpha} (\frac{s}{\alpha})^{\beta-1} \, ds = \frac{\beta}{\alpha^\beta} \left[ \frac{s^\beta}{\beta} \right]_0^t = (\frac{t}{\alpha})^\beta.
+$$
+
+We estimate $\Lambda(t)$ by
+
+$$
+\widehat{\Lambda}(t) = (\frac{t}{\alpha})^{\widehat{\beta}} = e^{\widehat{\beta} \log(\frac{t}{\alpha})} = e^{\widehat{\beta} \frac{1}{\widehat{\beta}}log(N(t))} = N(t).
+$$
+
+We can also estimate the reliability at a time $t' \neq t$ for:
+
+-   **Anticipate future breakdowns** If $t'>t$, one can estimate how
+    many additional failures may occur in the interval $[t, t']$, which
+    is crucial for preventive maintenance, resource planning or system
+    improvement.
+-   **Analyze past reliability** If $t'<t$, this allows reconstructing
+    or verifying past system behavior to identify anomalies or refine
+    models.
+
+In the case $t'>t$,  
+$$
+\frac{\Lambda(t')}{\Lambda(t)} = \left(\frac{t'}{t}\right)^\beta.
+$$
+
+We can therefore estimate future failures as  
+$$
+\Lambda(t') = \left(\frac{t'}{t}\right)^\beta \Lambda(t) = \left(\frac{t'}{t}\right)^\beta N(t).
+$$
+# Convergence of the estimators
+This next section is commented as the code execution is very time-consuming. The results of the execution are available to see in the report.
+\
+
+We aim to study the convergence of the two Maximum Likelihood Estimators of $\alpha$ and $\beta$. We simulate data for different values of $T_{max}$, the maximum observation time, and analyze how the MLEs stabilize around the true parameter values.
+
+## Convergence of $\beta$
+The first plot shows the evolution of $\hat{\beta}$ as a function of $T_{max}$. The horizontal dashed line represents the true value of $\beta = 0.5$.
+This visualization helps assess that $\hat{\beta}$ stabilizes near the true value as $T_{max}$ increases. The estimator of $\beta$ is consistent, this result confirms it is the right estimator.
+
+```{r}
+# Parameters
+# b <- 0.5
+# a <- 10
+# Tillustr <- 1:10000
+# 
+# # Simulation of the MLEs
+# MLE1 <- numeric(length(Tillustr))
+# MLE2 <- numeric(length(Tillustr))
+# 
+# for (i in seq_along(Tillustr)) {
+#   Tvar <- Tillustr[i]
+#   ppi <- simulPPi(Tvar,10000, a, b)  # Function simulPPi
+#   MLE_values <- MLE(ppi, Tvar)  # Function MLE
+#   MLE1[i] <- MLE_values[1]
+#   MLE2[i] <- MLE_values[2]
+# }
+# 
+# # Create dataframe with the data
+# data <- data.frame(
+#   Tmax = Tillustr,
+#   MLE1 = MLE1
+# )
+# 
+# data <- na.omit(data)  # Delete line that contain NA
+# 
+# # Verify the extrema values
+# max_Tmax <- max(data$Tmax, na.rm = TRUE)
+# max_MLE1 <- max(data$MLE1, na.rm = TRUE)
+# 
+# # Trace the graph
+# ggplot(data, aes(x = Tmax, y = MLE1)) +
+#   geom_line(color = "blue", linewidth = 1) +
+#   geom_hline(yintercept = b, color = "red", linetype = "dashed", linewidth = 1.2) +  # Horizontal line for b
+#   labs(
+#     x = "Tmax",
+#     y = expression(beta),
+#     title = "Convergence of Beta as a function of Tmax"
+#   ) +
+#   scale_x_continuous(limits = c(0, max_Tmax)) +  # Ajusts limits of the X axis
+#   scale_y_continuous(limits = c(0, max_MLE1)) +  # Ajusts limits of the Y axis
+#   theme_minimal()
+```
+
+## Convergence of $\alpha$
+We study the convergence of the estimator of $\alpha$, $\hat{\alpha}$, the same ways as $\hat{\beta}$. However, we do not observe the same results: $\hat{\alpha}$ does not converge towards $\alpha$ over time. This means that the estimator we computed is not consistent. We will study later on in this notebook the influence of $\alpha$ on the model and try to explain this result.
+```{r}
+# # Create dataframe with the data
+# data <- data.frame(
+#   Tmax = Tillustr,
+#   MLE2 = MLE2
+# )
+# 
+
+# data <- na.omit(data)  # Delete rows with NA value
+# 
+# # Verify the extrema
+# max_Tmax <- max(data$Tmax, na.rm = TRUE)
+# max_MLE2 <- max(data$MLE2, na.rm = TRUE)
+# 
+# # Trace the graph
+# ggplot(data, aes(x = Tmax, y = MLE2)) +
+#   geom_line(color = "blue", linewidth = 1) + 
+#   geom_hline(yintercept = a, color = "red", linetype = "dashed", linewidth = 1.2) +  # Horizontal line for b
+#   labs(
+#     x = "Tmax",
+#     y = expression(alpha),
+#     title = "Convergence of Alpha as a function of Tmax"
+#   ) +
+#   scale_x_continuous(limits = c(0, max_Tmax)) +  # Ajusts limits of the X axis
+#   scale_y_continuous(limits = c(0, max_MLE2)) +  # Ajusts limits of the Y axis
+#   theme_minimal()
+
+```
+
+# Asymptotic confidence interval for $\alpha$
+
+## Pivotal statistic
+
+Let's prove that: $$
+\frac{\sqrt{\Lambda (t)}}{\log(t)}(\log(\hat{\alpha}) - \log(\alpha))\underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}} \mathcal{N}(0, 1)
+$$ We know that, $$
+\begin{align}
+\log(\hat{\alpha}) &= \log(t) - \frac{1}{\hat{\beta}}\log(N(t)) \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log\left(\frac{N(t)}{\Lambda (t)}\right) - \frac{1}{\hat{\beta}}\log(\Lambda (t)) \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log\left(\frac{N(t)}{\Lambda (t)}\right) - \frac{1}{\hat{\beta}}\log\left(\left(\frac{t}{\alpha}\right)^{\beta}\right) \\
+&= \log(t) - \frac{1}{\hat{\beta}}\log\left(\frac{N(t)}{\Lambda (t)}\right) - \frac{\beta}{\hat{\beta}}\log\left(\frac{t}{\alpha}\right) \\
+&= \frac{\beta}{\hat{\beta}}\log(\alpha) - \frac{1}{\hat{\beta}}\log\left(\frac{N(t)}{\Lambda (t)}\right) - \left(\frac{\beta}{\hat{\beta}}-1\right)\log(t) \\
+\end{align}
+$$ Then, if we replace $\log(\hat{\alpha})$ by the previous formula, we
+have, $$
+\begin{align}
+\frac{\sqrt{\Lambda (t)}}{\log(t)}(\log(\hat{\alpha}) - \log(\alpha)) &= \frac{\sqrt{\Lambda (t)}}{\log(t)}\left(\frac{\beta}{\hat{\beta}}\log(\alpha) - \frac{1}{\hat{\beta}}\log\left(\frac{N(t)}{\Lambda (t)}\right) - \left(\frac{\beta}{\hat{\beta}}-1\right)\log(t) - \log(\alpha)\right) \\
+&= \frac{\log (\alpha)}{\log(t)}\sqrt{\Lambda (t)}\left(\frac{\beta}{\hat{\beta}} -1\right) - \frac{1}{\hat{\beta}\log(t)}\sqrt{\Lambda (t)} \log\left(\frac{N(t)}{\Lambda(t)}\right)-\sqrt{\Lambda (t)}\left(\frac{\beta}{\hat{\beta}} -1\right) \\
+\end{align}
+$$ Now, we study the convergence of each terms.
+
+\
+
+-   For
+    $- \frac{1}{\hat{\beta}\log(t)}\sqrt{\Lambda (t)} \log\left(\frac{N(t)}{\Lambda(t)}\right)$:\
+    First, we know that,
+    $\sqrt{\Lambda (t)} \left(\frac{N(t)}{\Lambda (t)} -1\right) \underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}} \mathcal{N}(0, 1)$
+    and
+    $\frac{N(t)}{\Lambda (t)} \underset{t \to +\infty}{\overset{\mathbb{P}}{\longrightarrow}} 1.$
+    So, by using proposition 3.9, with
+    $X(t) = \frac{N(t)}{\Lambda (t)}$, $m =1$,
+    $c(t) = \sqrt{\Lambda (t)}$, $\Gamma = 1$ and $f = \log$, we have,
+    $$
+    \sqrt{\Lambda (t)} \log\left(\frac{N(t)}{\Lambda(t)}\right) = \sqrt{\Lambda (t)} \left( \log(\frac{N(t)}{\Lambda(t)})-\log(1)\right) \underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}}
+     \mathcal{N}(0, K) \\
+    \text{with } K = Jf(m)\Gamma Jf(m)^T = 1
+    $$ We also know that,
+    $- \frac{1}{\hat{\beta}\log(t)} \underset{t \to +\infty}{\overset{\mathbb{P}}{\longrightarrow}} 0.$
+    So, by proposition 3.8, we have
+    $- \frac{1}{\hat{\beta}\log(t)}\sqrt{\Lambda (t)} \log\left(\frac{N(t)}{\Lambda(t)}\right) \underset{t \to +\infty}{\overset{\mathbb{P}}{\longrightarrow}} 0.$
+
+\
+
+-   For
+    $\frac{\log (\alpha)}{\log(t)}\sqrt{\Lambda (t)}\left(\frac{\beta}{\hat{\beta}} -1\right)$:\
+    We know by previous results that
+    $\sqrt{\Lambda (t)}\left(\frac{\beta}{\hat{\beta}} -1\right)\underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}} \mathcal{N}(0, 1)$
+    and
+    $\frac{\log (\alpha)}{\log(t)} \underset{t \to +\infty}{\overset{\mathbb{P}}{\longrightarrow}} 0.$
+    So, by proposition 3.8,
+    $\frac{\log (\alpha)}{\log(t)}\sqrt{\Lambda (t)}\left(\frac{\beta}{\hat{\beta}} -1\right)\underset{t \to +\infty}{\overset{\mathbb{P}}{\longrightarrow}} 0.$
+
+\
+
+-   For $-\sqrt{\Lambda (t)}(\frac{\beta}{\hat{\beta}} -1)$:\
+    Analogously,
+    $-\sqrt{\Lambda (t)}(\frac{\beta}{\hat{\beta}} -1)\underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}} -X \text{ with } X \sim \mathcal{N}(0, 1)$.
+    But the law of $-X$ is equal to the law of $X$.
+
+\
+
+Finally, we have:
+
+$$
+\frac{\sqrt{\Lambda (t)}}{\log(t)}(\log(\hat{\alpha}) - \log(\alpha))\underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}}
+ \mathcal{N}(0, 1)
+$$
+
+## An interval
+
+We estimate $\alpha$ with $\hat{\alpha}$ the maximum likelihood
+estimator:
+$\log(\hat{\alpha}) = \log(t) - \frac{1}{\hat{\beta}}\log(N(t))$.
+
+\
+
+-   Pivotal statistic:
+
+\
+$$
+\frac{\sqrt{N(t)}}{\log(t)}(\log(\hat{\alpha})- \log(\alpha)) =  \sqrt{\frac{N(t)}{\Lambda(t)}}\frac{\sqrt{\Lambda(t)}}{\log(t)}(\log(\hat{\alpha})- \log(\alpha))
+$$\
+We know that,
+$\frac{\sqrt{\Lambda (t)}}{\log(t)}(\log(\hat{\alpha}) - \log(\alpha))\underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}} \mathcal{N}(0, 1)$
+and
+$\sqrt{\frac{N(t)}{\Lambda(t)}} \underset{t \to +\infty}{\overset{\mathbb{P}}{\longrightarrow}} 1$.
+So, by Slutsky: $$
+\frac{\sqrt{N(t)}}{\log(t)}(\log(\hat{\alpha})- \log(\alpha)) \underset{t \to +\infty}{\overset{\mathcal{L}}{\longrightarrow}}
+ \mathcal{N}(0, 1)
+$$
+
+We search an asymptotic interval for $\alpha$ at level $1-\epsilon$. We
+search $c > 0$ such that: $$
+\mathbb{P} \left( \left| \frac{\sqrt{N(t)}}{\log(t)}(\log(\hat{\alpha})- \log(\alpha)) \right| \leq c \right) \underset{t \to +\infty}{\longrightarrow} \mathbb{P}(X \leq c) = 1-\epsilon \text{ with } X \sim \mathcal{N}(0,1)
+$$
+
+So $c = z_{1-\frac{\epsilon}{2}}$, with $z_{1-\frac{\epsilon}{2}}$ being
+the $\left(1-\frac{\epsilon}{2}\right)$-quantile of a
+$\mathcal{N}(0,1)$.
+
+\
+We then have, $$
+\begin{align}
+&\mathbb{P}\left(\left| \frac{\sqrt{N(t)}}{\log(t)}(\log(\hat{\alpha})- \log(\alpha))\right| \leq z_{1-\frac{\epsilon}{2}} \right) \underset{t \to +\infty}{\longrightarrow} 1 - \epsilon \\
+&\iff  \mathbb{P}\left(\left| \log(\hat{\alpha})- \log(\alpha)\right| \leq \frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \right) \underset{t \to +\infty}{\longrightarrow} 1 - \epsilon \\
+&\iff  \mathbb{P}\left( -\frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \leq \log(\hat{\alpha})- \log(\alpha) \leq \frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \right) \underset{t \to +\infty}{\longrightarrow} 1 - \epsilon \\
+&\iff  \mathbb{P}\left( \log(\hat{\alpha}) -\frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \leq \log(\alpha) \leq\log(\hat{\alpha}) +\frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \right) \underset{t \to +\infty}{\longrightarrow} 1 - \epsilon \\
+&\iff  \mathbb{P}\left(\log(\alpha) \in \left[ \log(\hat{\alpha}) \pm \frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \right] \right) \underset{t \to +\infty}{\longrightarrow} 1 - \epsilon \\
+&\iff  \mathbb{P}\left(\alpha \in \left[ \hat{\alpha} \exp \left( \pm \frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \right) \right] \right) \underset{t \to +\infty}{\longrightarrow} 1 - \epsilon \\
+\end{align}
+$$
+
+Finally, we have, $$
+IC^{a}_{1- \epsilon}(\alpha) = \left[ \hat{\alpha} \exp \left( -\frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}} \right),\hat{\alpha} \exp \left( + \frac{\log (t)}{\sqrt{N(t)}} z_{1-\frac{\epsilon}{2}}\right) \right]
+$$
+
+## Numerical check
+
+We implement a function to compute the asymptotic interval.
+
+```{r}
+IC_alpha_asymptotic <- function(PPi,Tmax,epsilon)
+{
+  Nt=length(PPi)
+  z <- qnorm((1 + epsilon) / 2)
+  lower_bound <- (MLE(PPi,Tmax)[1])*exp(-(log(Tmax)/sqrt(Nt)) * z)
+  upper_bound <- (MLE(PPi,Tmax)[1])*exp(+(log(Tmax)/sqrt(Nt)) * z)
+  #lower_bound=MLE(PPi,Tmax)[1]-log(Tmax)*z/sqrt(Nt)
+  #upper_bound=MLE(PPi,Tmax)[1]+log(Tmax)*z/sqrt(Nt)
+  return(c(lower_bound,upper_bound))
+}
+```
+
+```{r, echo=FALSE}
+cat(sprintf("Asymptotic interval for alpha = 1: [%.5f, %.5f]\n", IC_alpha_asymptotic(PPi1,Tmax,0.05)[1], IC_alpha_asymptotic(PPi1,Tmax,0.05)[2]))
+cat(sprintf("Asymptotic interval for alpha = 1: [%.5f, %.5f]\n", IC_alpha_asymptotic(PPi2,Tmax,0.05)[1], IC_alpha_asymptotic(PPi2,Tmax,0.05)[2]))
+cat(sprintf("Asymptotic interval for alpha = 50: [%.5f, %.5f]\n", IC_alpha_asymptotic(PPi3,Tmax,0.05)[1], IC_alpha_asymptotic(PPi3,Tmax,0.05)[2]))
+cat(sprintf("Asymptotic interval for alpha = 50: [%.5f, %.5f]\n", IC_alpha_asymptotic(PPi4,Tmax,0.05)[1], IC_alpha_asymptotic(PPi4,Tmax,0.05)[2]))
+```
+
+# Boeing
+
+In the first part, we explored the theoretical aspects of Weibull
+processes. Now, we will apply this model to real-world data. The data is
+sourced from the article *Theoretical Explanation of Observed Decreasing
+Failure Rate* (F. Proschan, 1963). This dataset represents the times of
+successive failures of the air conditioning system of a 15 720s
+aircrafts.
+
+```{r, echo = FALSE}
+data <- read.csv("/home/sara/Documents/5 ModIA/poisson/projet_weibull/time_failure_boeing.csv", header = TRUE)
+```
+
+For the remainder of the analysis, we focus on three aircraft (B09, B12,
+B13), as they contain the most data. Additionally, we include the
+cumulative sum.
+
+```{r}
+data_reduced = data[, c("B09", "B12", "B13")]
+data_reduced$B09_T <- cumsum(data_reduced$B09)
+data_reduced$B12_T <- cumsum(data_reduced$B12)
+data_reduced$B13_T <- cumsum(data_reduced$B13)
+```
+
+```{r, echo=FALSE}
+library(ggplot2)
+data_long <- data.frame(
+  Time = c(data_reduced$B09_T, data_reduced$B12_T, data_reduced$B13_T),
+  Count = rep(1:nrow(data_reduced), times = 3),
+  Plane = rep(c("B09", "B12", "B13"), each = nrow(data_reduced))
+)
+```
+
+```{r, echo=FALSE}
+par(mfrow = c(length(unique(data_long$Plane)), 1))
+
+for (plane in unique(data_long$Plane)) {
+  plane_data <- data_long[data_long$Plane == plane, ]
+  plot(plane_data$Time, plane_data$Count, type = "s", lwd = 1, col = "black",
+       xlab = "Time", ylab = "Number of failures", 
+       main = paste("Plane:", plane), xaxs = "i", yaxs = "i")
+  
+  for (i in seq_along(plane_data$Time)) {
+    lines(c(plane_data$Time[i], plane_data$Time[i]), 
+          c(0, plane_data$Count[i]), 
+          lty = 2, col = "gray")
+  }
+}
+```
+
+The graphs above represent the cumulative number of failures over time
+for our three aircrafts (B09, B12, and B13), with each displaying a
+stepwise increase corresponding to the occurrence of failures.
+
+\
+For B09, the failures initially occur more frequently and then gradually
+decline over time, indicating a decreasing failure rate as the air
+conditioning system stabilizes after early-phase failures. In contrast,
+B12 shows a more irregular pattern, with periods of stability followed
+by bursts of failures, particularly toward the end of the timeline,
+suggesting an aging system or wear accumulation leading to a higher
+failure rate in later stages. B13 exhibits more evenly distributed
+failures than B12 but still shows an upward trend over time. This
+behavior, with long stable periods followed by phases of increased
+failures, likely reflects gradual system degradation.
+
+\
+We assume that we can model this data with Weibull processes. Indeed,
+this approach is appropriate due to the flexibility and robustness of
+the Weibull distribution. The Weibull process effectively captures
+time-dependent failure rates (increasing, decreasing, or constant)
+through its shape parameter $\beta$. It is particularly well-suited for
+systems undergoing wear and aging, as seen in the observed failure
+trends.
+
+\
+First, we will estimate the parameters $\alpha$ and $\beta$.
+
+```{r, echo=FALSE}
+data_reduced_cleaned <- lapply(data_reduced[c("B09_T", "B12_T", "B13_T")], function(col) {
+  na.omit(col)
+})
+mle_results <- lapply(data_reduced_cleaned, function(col) {
+  Tmax <- max(na.omit(col))
+  MLE(col, Tmax) 
+})
+```
+
+```{r,echo=FALSE}
+mle_results
+```
+
+With these results, we are now interested in the shapes of the intensity
+curves.
+
+```{r, echo=FALSE}
+par(mfrow = c(3, 1))
+colname <- c("B09", "B12", "B13")
+for (i in 1:length(mle_results)) {
+  a <- mle_results[[i]][1]
+  b <- mle_results[[i]][2]
+  
+  Tmax <- max(data_reduced_cleaned[[i]])
+  curve(fct_wei_intensity(x, a, b), from = 0, to = Tmax, n = 1000, 
+        xlab = "Time", ylab = "Intensity", main =paste(colname[i], ", alpha :", round(a, 2), ", beta :", round(b, 2)), 
+        col = "blue", lwd = 2)
+  
+}
+
+par(mfrow = c(1, 1))
+```
+
+For B09 ($\alpha=57.62, \beta =0.9$), the intensity starts relatively
+low and gradually decreases over time. This behavior, with $\beta < 1$,
+indicates a decreasing failure rate, characteristic of a system where
+failures are more likely to occur early on. This is possibly due to
+initial defects or early wear-out phases.\
+In contrast, B12 ($\alpha=186.85, \beta=1.51$) shows a steadily
+increasing intensity over time, reflecting an increasing failure rate
+($\beta > 1$), which suggests degradation or wear-out of the system.\
+Finally, B13 ($\alpha=72.94, \beta=0.99$) begins with a higher intensity
+that decreases slightly over time, indicating a nearly constant or
+slightly decreasing failure rate, as $\beta \approx 1$. This could
+represent systems with early failures due to initial issues that
+stabilize later.
+
+\
+Overall, the differences in the shape parameters highlight varying
+failure behaviors: B12 exhibits a clear wear-out pattern, while B09
+demonstrates an initial period of higher failure rates followed by a
+gradual decline, indicative of early-phase failures stabilizing over
+time. In contrast, B13 shows relatively stable failure rates with a
+slight decline, similar to B09 but less pronounced. These insights
+suggest that B12 may require more intensive maintenance as it shows
+signs of degradation over time, while B09 and B13 appear to benefit from
+stabilizing or decreasing failure rates.
+
+```{r, echo=FALSE}
+IC_alpha_results <- lapply(data_reduced_cleaned, function(col) {
+  Tmax <- max(na.omit(col))
+  IC_alpha_asymptotic(col, Tmax, 0.05) 
+})
+```
+
+When displaying the confidence intervals for each aircraft, we observe
+that our estimators fall in these intervals, indicating that they are
+not rejected.
+
+```{r, echo=FALSE}
+IC_alpha_results
+```
+
+Furthermore, by examining the average number of failures through the
+cumulative function, we find that the initial number of failures aligns
+with the data. This consistency supports the validity of the modeling
+approach. #ajouter nb faillures before
+
+```{r, echo=FALSE}
+NB_faillure_results <- lapply(data_reduced_cleaned, function(col) {
+  Tmax <- max(na.omit(col))
+  fct_wei_cumu(Tmax,  MLE(col, Tmax)[1], MLE(col, Tmax)[2]) 
+})
+NB_faillure_results
+```
+
+## Analysis before and after repair
+
+In the previous part, we did not take into account that the aircrafts
+may have undergone repairs. Now, we will look at the breakdowns before
+and after repair and observe if there are any changes.
+
+```{r, echo=FALSE}
+data_maintenance <- read.csv("/home/sara/Documents/5 ModIA/poisson/projet_weibull/time_faillure_with_reparation_boeing.csv", header = TRUE)
+data_maintenance$B08_before_T <- cumsum(data_maintenance$B08_before)
+data_maintenance$B08_after_T <- cumsum(data_maintenance$B08_after)
+data_maintenance$B09_before_T <- cumsum(data_maintenance$B09_before)
+data_maintenance$B09_after_T <- cumsum(data_maintenance$B09_after)
+```
+
+```{r, echo=FALSE}
+library(tidyr)
+data_long <-na.omit(pivot_longer(
+  data_maintenance, 
+  cols = starts_with("B"),
+  names_to = c("Plane", "State"),
+  names_pattern = "(B\\d+)_(before|after)_T", 
+  values_to = "Value"
+))
+```
+
+```{r, echo=FALSE}
+par(mfrow = c(2, 2))
+
+planes <- unique(data_long$Plane)
+states <- unique(data_long$State)
+
+for (plane in planes) {
+  for (state in states) {
+    plane_data <- data_long[data_long$Plane == plane & data_long$State == state, ]
+    
+    plot(plane_data$Value, seq_along(plane_data$Value), type = "s", lwd = 1, 
+         col = ifelse(state == "before", "blue", "green"),
+         xlab = "time", ylab = "Number of failures",
+         main = paste("Plane:", plane, "-", state), xaxs = "i", yaxs = "i")
+    
+    for (i in seq_along(plane_data$Value)) {
+      lines(c(plane_data$Value[i], plane_data$Value[i]), 
+            c(0, i), 
+            lty = 2, col = "gray")
+    }
+  }
+}
+
+```
+
+\
+The figure above shows the cumulative number of failures over time for
+aircrafts B08 and B09, both before and after repairs.
+
+\
+For aircraft B08, before the repair, the cumulative number of failures
+increased gradually over a long period (up to 1800 units of time), with
+failures occurring occasionally. There were periods with no failures
+followed by clusters of more frequent ones, indicating a system
+experiencing wear but with a stable failure progression. After the
+repair, the cumulative failures rose more rapidly but over a much
+shorter timeframe (around 350 units of time). Failures became more
+concentrated, with shorter intervals between them, suggesting that the
+repair did not significantly improve reliability. Instead, it resulted
+in a system with more frequent failures in a condensed operational
+period.
+
+\
+For aircraft B09, before the repair, the cumulative failures increased
+steadily over a long period (up to 1500 units of time), with fairly
+regular intervals between failures. This reflects a system with a nearly
+constant failure rate, consistent with the previous Weibull analysis
+($\beta \approx 1$). After the repair, the cumulative failures increased
+much more slowly, with only a few failures recorded over a longer
+operational period (up to 700 units of time). The intervals between
+failures grew larger, showing that the repair effectively reduced the
+frequency of failures and temporarily stabilized the system.
+
+\
+We compare both aircrafts and we deduce that the repair of B09 was more
+effective. B08 experienced a shorter operational timeframe with more
+frequent failures post-repair. In contrast, B09 showed significantly
+reduced failure rates and extended intervals between failures.
+
+\
+As before, we estimate the parameters ($\alpha, \beta$).
+
+```{r, echo=FALSE}
+mle_reparation_results <- lapply(data_maintenance[c("B08_before_T", "B08_after_T", "B09_before_T", "B09_after_T")], function(col) {
+  Tmax <- max(na.omit(col))
+  MLE(na.omit(col), Tmax) 
+})
+mle_reparation_results
+```
+
+```{r, echo=FALSE}
+mle_results <- list(
+  B08 = list(before = mle_reparation_results$B08_before_T, 
+             after = mle_reparation_results$B08_after_T),
+  B09 = list(before = mle_reparation_results$B09_before_T, 
+             after = mle_reparation_results$B09_after_T)
+)
+
+```
+
+```{r, echo=FALSE}
+par(mfrow = c(2, 2))
+
+planes <- names(mle_results)
+states <- c("before", "after")
+i = 1
+for (plane in planes) {
+  for (state in states) {
+    params <- mle_results[[plane]][[state]]
+    a <- params[1]
+    b <- params[2]
+    
+    Tmax <- max(na.omit(data_maintenance[c("B08_before_T", "B08_after_T", "B09_before_T", "B09_after_T")][i]))
+    i <- i+1
+
+    curve(fct_wei_intensity(x, a, b), from = 0, to = Tmax, n = 1000,
+          xlab = "Time", ylab = "Intensity", 
+          main = paste(plane, state, ", alpha:", round(a, 2), ", beta:", round(b, 2)),
+          col = ifelse(state == "before", "blue", "green"), lwd = 2)
+  }
+}
+
+par(mfrow = c(1, 1))
+
+```
+
+\
+
+Before repair, the Weibull intensity function for B08
+($\alpha=247.17, \beta=1.27$) shows a steadily increasing failure
+intensity over time. It reflects a system experiencing wear and
+degradation. The high scale parameter $\alpha$ suggests that failures
+are distributed over a long period. The shape parameter $\beta$ confirms
+an increasing failure rate, typical of a system aging over time. After
+the repair, the intensity function changes significantly
+($\alpha=51.2, \beta=1.2$). The scale parameter decreases, indicating
+that failures occur over a much shorter time frame, and the initial
+failure intensity is higher. This suggests that the repair may not have
+fully addressed the underlying degradation.
+
+\
+
+Before repair of B09, the Weibull intensity function
+($\alpha=80.06, \beta=1.04$) indicates a nearly constant failure rate,
+as the shape parameter is close to 1. The scale parameter suggests that
+failures are spaced over time, and the overall system shows stable
+behavior with minimal degradation. After the repair, the intensity
+function also changes significantly ($\alpha=242.65, \beta=1.49$). The
+scale parameter increases, meaning that failures are distributed over a
+longer time period. However, the shape parameter indicates a steep
+increase in failure intensity over time. This suggests that while the
+repair temporarily stabilized the system, it did not prevent accelerated
+degradation. The system shows signs of wear-out and failures become more
+frequent over time.
+
+\
+As previously, the
+
+```{r, echo=FALSE}
+IC_alpha_results_reparation <- lapply(data_maintenance[c("B08_before_T", "B08_after_T", "B09_before_T", "B09_after_T")], function(col) {
+  Tmax <- max(na.omit(col))
+  IC_alpha_asymptotic(na.omit(col), Tmax, 0.05) 
+})
+IC_alpha_results_reparation
+```
+
+```{r, echo=FALSE}
+NB_failure_results_reparation <- lapply(data_maintenance[c("B08_before_T", "B08_after_T", "B09_before_T", "B09_after_T")], function(col) {
+  Tmax <- max(na.omit(col))
+  fct_wei_cumu(Tmax,  MLE(na.omit(col), Tmax)[1], MLE(na.omit(col), Tmax)[2]) 
+})
+NB_failure_results_reparation
+```

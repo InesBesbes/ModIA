@@ -1,0 +1,86 @@
+load "msh3"
+
+int t1 = 0;
+int t2 = 1;
+int np = 512;
+int p = 5;
+int q = 5;
+
+
+mesh Therror = square(np,np); // maillage très fin pour la solution de référence
+fespace V1error(Therror, P1);  // espace polynômes de degré 1
+V1error uTrue = sin(p*pi*x)*sin(q*pi*y);   // solution de référence
+
+
+real[int] listErrorL2(4);
+real[int] listErrorH1(4);
+real[int] listNp(4);
+ 
+for(int i=0;i<4;i++){
+    real np = 2^(i+5);
+    listNp[i] = np;
+    mesh Th = square(np,np);  // maillage de la solution simulée
+    fespace V0(Th,P0); 
+    fespace V1(Th,P1); 
+    V1 u, v;
+    V0 f = ((p*pi)^2 + (q*pi)^2)*sin(p*pi*x)*sin(q*pi*y); // solution simulée avec maillage np
+
+    problem Poisson(u,v) = int2d(Th)(dx(u)*dx(v) + dy(u)*dy(v)) - int2d(Th)(f*v) + on(1,2,3,4, u=0);
+    Poisson;
+    V1error uProj= u;
+    V1error e = uTrue - uProj;
+    
+    real errorL2 = sqrt(int2d(Therror)((e)^2)); 
+    real errorL2grad = sqrt(int2d(Therror)(dx(e)^2 + dy(e)^2));
+    real errorH1 = sqrt(errorL2^2 + errorL2grad^2);
+
+    listErrorL2[i] = errorL2;
+    listErrorH1[i] = errorH1;
+
+};
+
+
+{
+    ofstream file("errors.txt");
+    for (int i = 0; i < 4; i++) {
+    file << listNp[i] << " " << listErrorL2[i] << " " << listErrorH1[i] << endl;
+};
+
+}
+
+
+
+
+// fespace Ph(Th,P0);
+// Ph h = hTriangle;
+// real hmax = h[].max;
+
+
+
+// border C(t=0, 2*pi){x=x1+R*cos(t); y=x2+R*sin(t); label=5;};
+// mesh ThCircle = buildmesh(C(np));
+
+
+
+
+
+
+
+
+// real errorL2grad = sqrt(int2d(Th_error)(dx(e)^2 + dy(e)^2));
+
+// real errorL2 = sqrt(int2d(Th_error)((e)^2)); // si constante grande c ok mais on a du mal à atteindre l'objectif
+// real errorH1 = sqrt(errorL2^2 + errorL2grad^2);
+
+//observer numériquement les normes; prendre log en norme H1 ou L2
+// log de l'erreur en fonction de log de h : droite et le alpha = ordre de convergence 
+// alpha = 1  norme H1
+// alpha =2 norme L2
+// nbre de maille h = 2⁵ 
+// maillage très fin : uh restera uh (approcher pentes par pentes) Par contre pour u : approximation meilleure pr maillage très fin
+// calcul erreur : se placer dans maillages très fin pr pas que le calcul dans freefem injecte des erreurs 
+// maillage cartésien : si on multiplie par 2 maillage grossier sous maillage du maillage plus fin
+// V0 f = ((p*pi)^2 + (q*pi)^2)*sin(p*pi*x)*sin(q*pi*y); // f non constante mais dans V0. Or f dans L² (si dans V1 approcher par une dérivée qui n'existe pas -> être plus précis mais calcul pour rien) il va projeter f dans l'espace P0 donc elle sera constante sur chaque maille ?
+// Lorsque vous assignez une fonction non constante à un espace de fonctions P0, FreeFEM++ effectue une projection de la fonction non constante sur l'espace des fonctions constantes. Cela signifie que chaque élément de la maille recevra une valeur constante qui est une moyenne ou une approximation de la fonction non constante sur cet élément
+
+// interpolé plus proche de la solution exacte : maillage fin

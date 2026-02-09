@@ -1,0 +1,11 @@
+
+```{r}
+rm(list = ls())
+graphics.off()
+
+library(randtoolbox)
+
+library(DiceDesign)
+help(package = "DiceDesign")
+??mindist   # minimal distance in DoE
+```

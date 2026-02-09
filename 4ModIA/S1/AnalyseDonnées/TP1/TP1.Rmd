@@ -1,0 +1,141 @@
+---
+title: "TP1"
+output: pdf_document
+date: "2023-09-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+rm(list = ls())   # erase everything, start from scratch!
+
+# load the data from package funFEM
+
+# library(funFEM)
+# help("velib")   # look at the documentation there
+
+load("velib.RData")  # direct load of data; make sure that you are in the right directory
+velib
+```
+
+```{r}
+# data preparation
+x <- as.matrix(velib$data)
+colnames(x) <- 1:ncol(x)
+rownames(x) <- velib$names
+
+n <- nrow(x)
+stations <- 1:n 
+coord <- velib$position[stations,]
+
+# select exactly 7 days of data (we remove the first 13 dates)
+dates <- 14:181
+x <- x[stations, dates]
+colnames(x) <- 1:length(dates)
+```
+
+```{r}
+timeTick <- 1 + 24*(0:6)  # vector corresponding to the beginning of days
+par(mfrow = c(1, 1))
+
+options(repr.plot.width = 15, repr.plot.height = 6)
+
+plot(x[1, ], col = "blue", type = "l", ylim = c(0, 1), 
+     xlab = "Time", ylab = "Loading", main = rownames(x)[1])
+abline(v = timeTick, lty = "dotted")
+
+```
+```{r}
+# From now on, we use numbers instead of station names, 
+# in order to simplify printing (if required, the names are contained in velib$names)
+rownames(x) <- 1:nrow(x)
+```
+
+```{r}
+par(mar=c(1,1,1,1))
+par(mfrow = c(4,4))
+
+options(repr.plot.width = 15, repr.plot.height = 15)
+
+for (i in c(1:16)) {
+  plot(x[i,],col = "blue", type = "l", ylim = c(0, 1), xlab = "Time", ylab = "Loading", main = rownames(x)[i])
+}
+```
+```{r}
+boxplot(x)
+```
+
+```{r}
+mHeures = c()
+mJours = c()
+for (i in 1:168) {
+    mHeures = append(mHeures, mean(x[,i]))
+  }
+  mJours = append(mJours, mHeures)
+  
+mJours = matrix(mJours, 24,7)
+
+matplot(mJours, type = "l")
+
+
+```
+
+
+```{r}
+library(ggmap)
+
+load = rowMeans(x)
+qmplot(longitude, latitude, data = velib$position, color = load)
+
+load6 = rowMeans(x[, seq(from = 6, by = 24, length = 7)])
+load12 = rowMeans(x[, seq(from = 6, by = 24, length = 7)])
+load23 = rowMeans(x[, seq(from = 6, by = 24, length = 7)])
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+library(FactoMineR)
+res.acp = PCA(x, scale.unit= FALSE, ncp = 15)
+barplot(res.acp$eig[1:15,"percentage of variance"], main="Pourcentages d’inerties")
+boxplot(res.acp$ind$coord)
+
+```
+
+```{r}
+par(mfrow= c(2,2))
+plot(res.acp$var$coord[,1], type = "l", xlab = "Time", ylab = "Loading", ylim = c(-1,1))
+plot(res.acp$var$coord[,2], type = "l", xlab = "Time", ylab = "Loading",ylim = c(-1,1))
+plot(res.acp$var$coord[,3], type = "l", xlab = "Time", ylab = "Loading",ylim = c(-1,1))
+plot(res.acp$var$coord[,4], type = "l", xlab = "Time", ylab = "Loading",ylim = c(-1,1))
+```
+```{r}
+res.acp = PCA(x, scale.unit= FALSE, ncp = 15)
+plot(res.acp, axes = c(1,2))
+
+```
+```{r}
+xHill = data.frame(x, hill = as.factor(velib$bonus))
+res.acp2 = PCA(xHill, ncp=15, quali.sup = 169)
+plot(res.acp2, axes = c(1,2), choix = "ind", cex = 0.5, habillage = 169)
+```
+```{r}
+```
+
+dire que c une moyenne sur chaque axe : une combinaison linéaire qui se distingue 
+on n'est pas censé interpréter le sens physique des choses
+

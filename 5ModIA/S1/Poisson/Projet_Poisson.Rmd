@@ -1,0 +1,297 @@
+---
+title: "Projet_Poisson"
+output: html_document
+date: "2024-11-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+```
+
+
+```{r}
+fct_wei_intensity <- function(x,a,b){return((b/a)*(x/a)**(b-1))}
+fct_wei_cumu <- function(x,a,b){return((x/a)**(b))}
+```
+
+# Reliability estimation
+# Convergence of the estimators
+This next section is commented as the code execution is very time-consuming. The results of the execution are available to see in the report.
+\
+
+We aim to study the convergence of the two Maximum Likelihood Estimators of $\alpha$ and $\beta$. We simulate data for different values of $T_{max}$, the maximum observation time, and analyze how the MLEs stabilize around the true parameter values.
+
+## Convergence of $\beta$
+The first plot shows the evolution of $\hat{\beta}$ as a function of $T_{max}$. The horizontal dashed line represents the true value of $\beta = 0.5$.
+This visualization helps assess that $\hat{\beta}$ stabilizes near the true value as $T_{max}$ increases. The estimator of $\beta$ is consistent, this result confirms it is the right estimator.
+
+```{r}
+# Parameters
+# b <- 0.5
+# a <- 10
+# Tillustr <- 1:10000
+# 
+# # Simulation of the MLEs
+# MLE1 <- numeric(length(Tillustr))
+# MLE2 <- numeric(length(Tillustr))
+# 
+# for (i in seq_along(Tillustr)) {
+#   Tvar <- Tillustr[i]
+#   ppi <- simulPPi(Tvar,10000, a, b)  # Function simulPPi
+#   MLE_values <- MLE(ppi, Tvar)  # Function MLE
+#   MLE1[i] <- MLE_values[1]
+#   MLE2[i] <- MLE_values[2]
+# }
+# 
+# # Create dataframe with the data
+# data <- data.frame(
+#   Tmax = Tillustr,
+#   MLE1 = MLE1
+# )
+# 
+# data <- na.omit(data)  # Delete line that contain NA
+# 
+# # Verify the extrema values
+# max_Tmax <- max(data$Tmax, na.rm = TRUE)
+# max_MLE1 <- max(data$MLE1, na.rm = TRUE)
+# 
+# # Trace the graph
+# ggplot(data, aes(x = Tmax, y = MLE1)) +
+#   geom_line(color = "blue", linewidth = 1) +
+#   geom_hline(yintercept = b, color = "red", linetype = "dashed", linewidth = 1.2) +  # Horizontal line for b
+#   labs(
+#     x = "Tmax",
+#     y = expression(beta),
+#     title = "Convergence of Beta as a function of Tmax"
+#   ) +
+#   scale_x_continuous(limits = c(0, max_Tmax)) +  # Ajusts limits of the X axis
+#   scale_y_continuous(limits = c(0, max_MLE1)) +  # Ajusts limits of the Y axis
+#   theme_minimal()
+```
+
+## Convergence of $\alpha$
+We study the convergence of the estimator of $\alpha$, $\hat{\alpha}$, the same ways as $\hat{\beta}$. However, we do not observe the same results: $\hat{\alpha}$ does not converge towards $\alpha$ over time. This means that the estimator we computed is not consistent. We will study later on in this notebook the influence of $\alpha$ on the model and try to explain this result.
+```{r}
+# # Create dataframe with the data
+# data <- data.frame(
+#   Tmax = Tillustr,
+#   MLE2 = MLE2
+# )
+# 
+
+# data <- na.omit(data)  # Delete rows with NA value
+# 
+# # Verify the extrema
+# max_Tmax <- max(data$Tmax, na.rm = TRUE)
+# max_MLE2 <- max(data$MLE2, na.rm = TRUE)
+# 
+# # Trace the graph
+# ggplot(data, aes(x = Tmax, y = MLE2)) +
+#   geom_line(color = "blue", linewidth = 1) + 
+#   geom_hline(yintercept = a, color = "red", linetype = "dashed", linewidth = 1.2) +  # Horizontal line for b
+#   labs(
+#     x = "Tmax",
+#     y = expression(alpha),
+#     title = "Convergence of Alpha as a function of Tmax"
+#   ) +
+#   scale_x_continuous(limits = c(0, max_Tmax)) +  # Ajusts limits of the X axis
+#   scale_y_continuous(limits = c(0, max_MLE2)) +  # Ajusts limits of the Y axis
+#   theme_minimal()
+
+```
+
+
+# Simulation of a Weibull process
+Simulating a Weibull process is equivalent to simulating a non-homogeneous Poisson process with a specific intensity function.
+
+### Simulation of a homogeneous Poisson process
+Simulation of a homogeneous Poisson process with intensity `lambda` on the window [0,`Tmax`].
+
+```{r simulPPh,eval=FALSE}
+simulPPh <- function(lambda,Tmax)
+{
+  N_tmax = rpois(1, lambda*Tmax)
+  unif = sort(runif(N_tmax, 0, Tmax))
+  return(unif)
+}
+```
+
+Let us define a plot function for a counting process `PP`. 
+```{r plot.PP}
+plot.PP <- function(PP) {
+  # Create a data frame for the step plot
+  df <- data.frame(
+    time = c(0, PP),
+    count = 0:length(PP)
+  )
+  
+  # Create a data frame for the points (arrival times)
+  points_df <- data.frame(
+    time = PP,
+    count = rep(0, length(PP))
+  )
+  
+  # Plot using ggplot
+  ggplot(df, aes(x = time, y = count)) +
+    # Add the step line with color
+    geom_step(direction = "hv", color = "blue", size = 1) +
+    # Add points for arrival times with color
+    geom_point(data = points_df, aes(x = time, y = count), shape = 16, color = "red", size = 3) +
+    # Add dashed vertical lines connecting arrival times to the steps with color
+    geom_segment(data = points_df, aes(x = time, xend = time, y = count, yend = match(time, PP) - 1),
+                 linetype = "dashed", color = "black") +
+    # Add labels
+    labs(x = "Time t", y = "Number of events by time t") +
+    # Use a clean theme
+    theme_minimal()
+}
+```
+
+```{r,eval=FALSE}
+# Simulation and plot of a homogeneous Poisson process:
+PPh = simulPPh(2,100)
+plot.PP(PPh)
+```
+### Simulation of an inhomogeneous Poisson process
+Simulation of an inhomogeneous Poisson processes with Weibull intensity function on a fixed window [0,`Tmax`]. 
+```{r}
+simulPPi <- function(Tmax, M, a, b) {
+  hpp = simulPPh(M, Tmax)
+  
+  unif = runif(length(hpp), 0, M)
+  
+  selected = (unif <= fct_wei_intensity(hpp, a, b))
+  
+  return(sort(hpp[selected]))
+}
+```
+
+### Case where β > 1
+```{r}
+Tmax=10
+b=2.5
+a=1
+M = (b/a)*(Tmax/a)**(b-1) 
+PPi = simulPPi(Tmax,M,a,b)
+par(mfrow=c(1,2))
+curve(fct_wei_intensity(x,a,b),from=0,to=Tmax,n=1000)
+plot.PP(PPi)
+```
+### Case where β <= 1
+```{r}
+Tmax=1000
+b=0.5
+a=1
+M = 10000
+PPi2= simulPPi(Tmax,M,a ,b)
+
+par(mfrow=c(1,2))
+curve(fct_wei_intensity(x,a,b),from=0,to=Tmax,n=1000)
+plot.PP(PPi2)
+```
+# à enlever après car déjà dans la partie de Sara : 
+```{r}
+MLE <- function(PPi,Tmax)
+{
+  Nt = length(PPi)
+  mle_beta = 1/(log(Tmax) - (1/Nt)*sum(log(PPi)))
+  mle_alpha = Tmax*Nt**(-1/mle_beta)
+  return(c(mle_alpha,mle_beta))
+}
+```
+
+```{r}
+#beta > 1
+Tmax=1000
+b=2.5
+a=1
+M = (b/a)*(Tmax/a)**(b-1)
+PPi1 = simulPPi(Tmax, M, a, b) 
+```
+
+```{r}
+#beta > 1
+Tmax=1000
+b=2.5
+a=30
+M = (b/a)*(Tmax/a)**(b-1)
+PPi3 = simulPPi(Tmax, M, a, b) 
+```
+
+```{r}
+#beta <= 1
+Tmax=1000
+b=0.8
+a=1
+M = 10000
+PPi2= simulPPi(Tmax, M, a, b)
+```
+
+```{r}
+#beta <= 1
+Tmax=1000
+b=0.8
+a=30
+M = 10000
+PPi4= simulPPi(Tmax, M, a, b)
+```
+
+
+# Confidence interval for $\beta$
+
+
+
+
+```{r}
+IC_beta <- function(PPi,Tmax,epsilon)
+  {
+  Nt=length(PPi)
+  chi2_lower <- qchisq(epsilon / 2, df = 2 * Nt)
+  chi2_upper <- qchisq(1 - epsilon / 2, df = 2 * Nt)
+  
+  lower_bound <- (MLE(PPi,Tmax)[2]* chi2_lower) / (2 * Nt)
+  upper_bound <- (MLE(PPi,Tmax)[2] * chi2_upper) / (2 * Nt)
+  
+  return(c(lower = lower_bound, upper = upper_bound))
+
+}
+```
+
+# Asymptotic confidence interval for $\beta$
+```{r}
+IC_beta_asymp<- function(PPi,Tmax,epsilon)
+{
+  Nt=length(PPi)
+  z <- qnorm(1 - epsilon / 2)
+  
+  lower_bound <- MLE(PPi,Tmax)[2] * (1 - z / sqrt(Nt))
+  upper_bound <- MLE(PPi,Tmax)[2] * (1 + z / sqrt(Nt))
+  
+  return(c(lower = lower_bound, upper = upper_bound))
+}
+
+```
+
+## Results
+```{r, echo=FALSE}
+cat(sprintf("Asymptotic interval for beta = 2.5 with alpha=1: [%.5f, %.5f]\n", IC_beta_asymp(PPi1,Tmax,0.05)[1], IC_beta_asymp(PPi1,Tmax,0.05)[2]))
+cat(sprintf("Asymptotic interval for beta = 0.8 with alpha=1: [%.5f, %.5f]\n", IC_beta_asymp(PPi2,Tmax,0.05)[1], IC_beta_asymp(PPi2,Tmax,0.05)[2]))
+cat(sprintf("Asymptotic interval for beta = 2.5 with alpha=30: [%.5f, %.5f]\n", IC_beta_asymp(PPi3,Tmax,0.05)[1], IC_beta_asymp(PPi3,Tmax,0.05)[2]))
+cat(sprintf("Asymptotic interval for beta = 0.8 with alpha=30: [%.5f, %.5f]\n", IC_beta_asymp(PPi4,Tmax,0.05)[1], IC_beta_asymp(PPi4,Tmax,0.05)[2]))
+```
+```{r, echo=FALSE}
+cat(sprintf("Confidence interval for beta = 2.5 with alpha=1: [%.5f, %.5f]\n", IC_beta(PPi1,Tmax,0.05)[1], IC_beta_asymp(PPi1,Tmax,0.05)[2]))
+cat(sprintf("Confidence interval for beta = 0.8 with alpha=1: [%.5f, %.5f]\n", IC_beta(PPi2,Tmax,0.05)[1], IC_beta_asymp(PPi2,Tmax,0.05)[2]))
+cat(sprintf("Confidence interval for beta = 2.5 with alpha=30: [%.5f, %.5f]\n", IC_beta(PPi3,Tmax,0.05)[1], IC_beta_asymp(PPi3,Tmax,0.05)[2]))
+cat(sprintf("Confidence interval for beta = 0.8 with alpha=30: [%.5f, %.5f]\n", IC_beta(PPi4,Tmax,0.05)[1], IC_beta_asymp(PPi4,Tmax,0.05)[2]))
+```
+
+
+
+
+
+

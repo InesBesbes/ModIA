@@ -1,0 +1,116 @@
+---
+title: "TP_MCA"
+output: html_document
+date: "2023-09-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Illustration of multiple correspondence analysis on velib data
+Author: O. Roustant, INSA Toulouse. April 2022.
+
+We consider the ‘Vélib’ data set, related to the bike sharing system of Paris. The data are loading profiles of the bike stations over one week, collected every hour, from the period Monday 2nd Sept. - Sunday 7th Sept., 2014. The loading profile of a station, or simply loading, is defined as the ratio of number of available bikes divided by the number of bike docks. A loading of 1 means that the station is fully loaded, i.e. all bikes are available. A loading of 0 means that the station is empty, all bikes have been rent.
+
+From the viewpoint of data analysis, the individuals are the stations. The variables are the 168 time steps (hours in the week). The aim is to detect clusters in the data, corresponding to common customer usages. This clustering should then be used to predict the loading profile.
+
+```{r }
+rm(list = ls())   # erase everything, start from scratch!
+
+# load the data from package funFEM
+
+load("velib.RData")
+```
+
+```{r}
+# data preparation
+x <- as.matrix(velib$data)
+colnames(x) <- 1:ncol(x)
+rownames(x) <- velib$names
+
+n <- nrow(x)
+stations <- 1:n 
+coord <- velib$position[stations,]
+
+# select exactly 7 days of data (we remove the first 13 dates)
+dates <- 14:181
+x <- x[stations, dates]
+colnames(x) <- 1:length(dates)
+```
+
+```{r}
+timeTick <- 1 + 24*(0:6)  # vector corresponding to the beginning of days
+par(mfrow = c(1, 1))
+
+options(repr.plot.width = 15, repr.plot.height = 6)
+
+plot(x[1, ], col = "blue", type = "l", ylim = c(0, 1), 
+     xlab = "Time", ylab = "Loading", main = rownames(x)[1])
+abline(v = timeTick, lty = "dotted")
+
+```
+
+# Transformation to qualitative data
+```{r}
+Xcat <- data.frame(hill = factor(velib$bonus, labels = c("nohill", "hill")))
+day <- 7:20
+night <- c(1:6, 21:24)
+breaks <- c(-0.01, 1/3, 2/3, 1.01)
+labels <- letters[1:(length(breaks)-1)]
+for (i in 1:7){
+  newCol <- rowMeans(x[, day + (i-1)*24])
+  newCol <- cut(newCol, breaks = breaks, labels = labels)
+  newName <- paste('day', i, sep = '')
+  Xcat <- cbind(Xcat, newCol)
+  names(Xcat)[ncol(Xcat)] <- newName
+}
+for (i in 1:7){
+  newCol <- rowMeans(x[, night + (i-1)*24])
+  newCol <- cut(newCol, breaks = breaks, labels = labels)
+  Xcat <- cbind(Xcat, newCol)
+  newName <- paste('night', i, sep = '')
+  names(Xcat)[ncol(Xcat)] <- newName
+}
+#rownames(Xcat) <- velib$names
+head(Xcat)
+```
+
+# Multiple correspondence analysis
+```{r}
+library(FactoMineR)
+afcm <- MCA(Xcat, graph = FALSE)
+plot(afcm, axes = c(1, 2), choix = "ind", invisible = "ind", habillage = "quali")
+plot(afcm, axes = c(1, 2), choix = "ind", label = "no")
+
+```
+**Q**. Interpret the results of the two graphs. Look at higher principal components.
+```{r}
+# Clustering on the principal components
+```
+
+**Q** Complete the following R code in order to apply k-means on the 5 first principal components of AFCM.
+```{r}
+K <- 6
+reskmAFCM <- kmeans(??, centers = K, nstart = 10)
+# visualization of the clusters, as time series
+par(mfrow = c(2, 3))
+for (i in 1:K){
+  boxplot(x[which(reskmAFCM$cluster == i), ], col = i, 
+          xlab = "Time", ylab = "Loading", main = paste("Class", i))
+}
+# visualization of the clusters on a 2D map
+par(mfrow = c(1, 1))
+plot(coord, pch = reskmAFCM$cluster, col = reskmAFCM$cluster, asp = 1, 
+     main = "Clustering on AFCM coordinates (dim 5)")
+
+```
+**Q** In MCA, we have included the qualitative variable "hill" in the analysis. Does it change something from what you did in the project, when dealing only with quantitative variables? Try by removing the column "hill" of Xcat, and adding it as a supplementary variable in MCA. Explain why / why not.
+```{r}
+table(reskmAFCM$cluster, Xcat$hill)
+```
+
+# Improvements
+**Q** The previous results suggest a new definition of the qualitative variables. Which one? Furthermore, the definition of the levels should be improved. Why and how?
+
+**Q** Implement these improvements and compare the results.

@@ -1,0 +1,29 @@
+load "msh3"
+
+int a =1;
+int b=1;
+int np=40;
+real eps = 0.5;
+real mu =1 ;
+real r=0.5;
+real Tf = 50;
+int x1 = 0;
+int x2=0;
+
+mesh Carre = square(np*a,np*b,[-a+2*a*x,-b+2*b*y]);
+plot(Carre);
+
+fespace V1(Carre,P1);
+fespace V0(Carre,P0);
+
+V1 Te, v;
+V0 f=0;
+
+V0 disk = sqrt((x-x1)^2 + (y-x2)^2) < r ? 0 : 1;
+
+
+
+problem Chaleur = int2d(Carre)((1-disk)*(mu*(dx(Te)*dx(v) + dy(Te)*dy(v))+ 1/eps*Te*v) )-(1/eps) * int2d(Carre)(disk*Tf*v) ;//;+ on(1,Te=24) +  on(2,3,4, Te=0);
+
+Chaleur;
+plot(Te);

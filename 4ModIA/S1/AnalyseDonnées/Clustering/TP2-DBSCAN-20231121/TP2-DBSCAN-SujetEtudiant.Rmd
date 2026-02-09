@@ -1,0 +1,226 @@
+---
+title: "TP Clustering"
+subtitle: "Partie 2 : DBSCAN sur données quantitatives"
+date : "4modIA / 2023-2024"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth : 4
+    number_sections : true
+header-includes:
+  - \usepackage{comment}
+params:
+  soln: TRUE   
+---
+
+```{css,echo=F}
+.badCode {
+background-color: #cfdefc; 
+}
+
+
+
+.corrO { background-color: rgb(255,238,237); }
+.corrS { background-color: pink; color: black; border: 1px solid red; }
+```
+
+```{r setup, echo=FALSE, cache=TRUE, message=F,warning=F}
+library(knitr)
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=FALSE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               class.source="badCode")
+opts_knit$set(width=75)
+```
+
+L'objectif de ce TP est d'illustrer les notions abordées pour la méthode DBSCAN. Les librairies R nécessaires pour ce TP : 
+
+```{r,echo=T, error=F,warning=F,message=F}
+## Pour faire le TP
+
+library(mclust)
+library(factoextra)
+library(FactoMineR)
+library(dbscan)
+library(seriation)
+```
+
+
+# Clustering des données de vins 
+
+## Reprise des données 
+
+On reprend dans ce second TP les données `wine` disponibles sur la page moodle du cours. On charge ici les données.  
+
+```{r,eval=F}
+wine<-read.table("wine.txt",header=T)
+wine$Qualite = as.factor(wine$Qualite)
+wine$Type = factor(wine$Type, labels = c("blanc", "rouge"))
+
+wineinit<-wine
+wine[,-c(1,2)]<-scale(wine[,-c(1,2)],center=T,scale=T)
+
+head(wine)
+```
+
+On fait une ACP pour la visualisation des résultats dans la suite
+
+```{r,eval=F}
+resacp<-PCA(wine,quali.sup=c(1,2), scale.unit = TRUE,graph=FALSE)
+fviz_pca_ind(resacp,habillage=2,geom=c("point"))
+```
+
+## DBSCAN à paramètres fixés
+
+**Question :** Dans un premier temps, utilisez l'algorithme DBSCAN avec les paramètres `minPts=` 7 et `eps=` 1 à l'aide de la fonction `dbscan()` de la librairie `dbscan`. Quels sont les effectifs par classe ? Combien d'individus ne sont pas classés ?
+
+```{r,eval=F}
+# A COMPLETER
+minPts<-7
+eps<-1
+res.db <- dbscan::dbscan(wine[,-c(1,2)], minPts = 7, eps = 1)
+table(res.db$cluster)
+```
+0 = classe des non classés
+```{r,eval=F}
+fviz_cluster(res.db, wine[,-c(1:2)], geom="point",ellipse="FALSE")+
+  theme(legend.position="none")+
+  xlab("")+ylab("")+ggtitle("Avec DBSCAN")
+```
+Les points sont projetés sur le premier plan factoriel, on a l'impression que les non classés sont proches des autres alors que non.
+
+## Influence des paramètres de DBSCAN
+
+**Question :** Pour étudier l'influence des paramètres `minPts` et `eps`, évaluez le nombre de classes obtenues et le nombre d'individus non classés pour différentes valeurs de ces paramètres.  
+
+```{r,eval=F}
+minPts <- seq(5,15,1)
+eps <- seq(0.5,2,0.1)
+NBCluster <- matrix(0,nrow=length(minPts),ncol=length(eps))
+NBNonCl <-matrix(0,nrow=length(minPts),ncol=length(eps))
+for (i in 1:length(minPts)){
+  for (j in 1:length(eps)){
+    res<-dbscan::dbscan(wine[,-c(1,2)], eps=eps[j], minPts=minPts[i])
+    NBCluster[i,j] <- length(table(res$cluster)) - 1
+    NBNonCl[i,j] <- sum(res$cluster == 0)
+  }
+}
+
+df<-data.frame(eps=rep(eps,each=length(minPts)),
+              minPts=as.factor(rep(minPts,length(eps))),
+              NBCluster=c(NBCluster),
+              NBNonCl=c(NBNonCl)*100/nrow(wine))
+
+ggplot(df,aes(x=eps,y=NBCluster,col=minPts))+geom_point()+geom_line()
+ggplot(df,aes(x=eps,y=NBNonCl,col=minPts))+geom_point()+geom_line()
+```
+quand on élargit trop le rayon il y a une baisse
+compromis entre chargement dans le voisinage et distance 
+pllus j'ouvre le rayon, plus les points ont de chance d'être dedans donc normalement apres on peut classer tout le monde
+
+
+
+**Question :** Pour une valeur de `minPts=7`, tracez le graphe de distance kNN afin de choisir le paramètre `eps`. Vous pouvez utiliser la fonction `kNNdistplot()`. Qu'en pensez-vous ?
+
+```{r,eval=F}
+dbscan::kNNdistplot(wine[,-c(1,2)], k = 6)
+abline(h = 1.5, lty = 2)
+```
+
+## Comparaison avec les Kmeans
+
+**Question :** A l'aide des questions précédentes, choisissez des paramètres pour obtenir un clustering à 4 classes. Comparez cette classification avec celle obtenue par les Kmeans pour le même nombre de classes.  
+
+```{r,eval=F}
+res.db = dbscan::dbscan(wine[,-c(1,2)], eps = 0.7, minPts = 7)
+table(res.db$cluster)
+fviz_cluster(res.db, wine[,-c(1:2)], geom="point",ellipse="FALSE")+
+  theme(legend.position="none")+
+  xlab("")+ylab("")+ggtitle("Avec DBSCAN")
+
+fviz_pca_ind(res.acp, habillage = as.factor(res.db$cluster), geom = c("point"))
+```
+
+# Clustering sur données simulées
+
+Dans cette partie, on considère les données simulées "chameleon_ds7" disponibles dans la librairie `seriation`. 
+
+```{r}
+library(seriation)
+data(Chameleon)
+ggplot(chameleon_ds7,aes(x=x,y=y))+geom_point()
+```
+
+
+**Question :** Mettez en place une stratégie de classification de ces données par DBSCAN et par Kmeans. Comparez les résultats. Retrouvez les grandes caractéristiques de ces deux méthodes. 
+
+```{r}
+Kmax<-20
+reskmeanscl<-matrix(0,nrow=nrow(chameleon_ds7),ncol=Kmax-1)
+Iintra<-NULL
+for (k in 2:Kmax){
+  resaux<-kmeans(chameleon_ds7, centers = k)
+  reskmeanscl[,k-1]<-resaux$cluster
+  Iintra<-c(Iintra,resaux$tot.withinss)
+}
+
+df<-data.frame(K=2:20,Iintra=Iintra)
+ggplot(df,aes(x=K,y=Iintra))+geom_line()+geom_point()+xlab("Nombre de classes")+ylab("Inertie intraclasse")
+```
+
+
+```{r,eval=F}
+res.acp<-PCA(chameleon_ds7, scale.unit = TRUE,graph=FALSE)
+reskmeans<-kmeans(chameleon_ds7, centers = 5)
+fviz_cluster(reskmeans, data = chameleon_ds7, ellipse.type = "norm", labelsize = 8, geom = c("point"))+ggtitle("")
+table(reskmeans$cluster)
+fviz_pca_ind(res.acp, col.ind = as.factor(reskmeans$cluster), geom=c("point"), axes = c(1,2))
+```
+```{r}
+
+```
+```{r}
+resdb = dbscan::dbscan(chameleon_ds7, eps = 13, minPts = 25)
+fviz_cluster(res.db, wine[,-c(1:2)], geom="point",ellipse="FALSE")+
+  theme(legend.position="none")+
+  xlab("")+ylab("")+ggtitle("Avec DBSCAN")
+```
+```{r}
+dbscan::kNNdistplot(chameleon_ds7, k = 24)
+```
+
+```{r}
+minPts <- seq(10,20,1)
+eps <- seq(10,15,1)
+NBCluster <- matrix(0,nrow=length(minPts),ncol=length(eps))
+NBNonCl <-matrix(0,nrow=length(minPts),ncol=length(eps))
+for (i in 1:length(minPts)){
+  for (j in 1:length(eps)){
+    res<-dbscan::dbscan(chameleon_ds7, eps=eps[j], minPts=minPts[i])
+    NBCluster[i,j] <- length(table(res$cluster)) - 1
+    NBNonCl[i,j] <- sum(res$cluster == 0)
+  }
+}
+
+df<-data.frame(eps=rep(eps,each=length(minPts)),
+              minPts=as.factor(rep(minPts,length(eps))),
+              NBCluster=c(NBCluster),
+              NBNonCl=c(NBNonCl)*100/nrow(wine))
+
+ggplot(df,aes(x=eps,y=NBCluster,col=minPts))+geom_point()+geom_line()
+ggplot(df,aes(x=eps,y=NBNonCl,col=minPts))+geom_point()+geom_line()
+```
+```{r}
+fviz_cluster(resdb, chameleon_ds7, geom="point",ellipse="FALSE")+
+  theme(legend.position="none")+
+  xlab("")+ylab("")+ggtitle("Avec DBSCAN")
+```
+
+

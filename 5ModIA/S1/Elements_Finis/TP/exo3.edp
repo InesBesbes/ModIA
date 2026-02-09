@@ -1,0 +1,74 @@
+load "msh3"
+
+int npRef = 1024;
+real x1 = 0.5;
+real x2 = 0.5;
+
+border B1(t=0,1){x=t;y=0;label=1;};
+border B2(t=0,1){x=1;y=t;label=1;};
+
+border B3(t=1,0.5){x=t;y=1;label=1;};
+border B4(t=1,0.5){x=0.5;y=t;label=1;};
+
+border B5(t=0.5,0){x=t;y=0.5;label=1;};
+border B6(t=0.5,0){x=0;y=t;label=1;};
+
+mesh CarreRef = buildmesh(B1(npRef)+B2(npRef)+B3(npRef/2)+B4(npRef/2)+B5(npRef/2)+B6(npRef/2)); // pr pas surmailler
+plot(CarreRef, wait=1);
+
+fespace V1Ref(CarreRef,P1);
+fespace V0Ref(CarreRef,P0);
+
+V1Ref uRef, vRef;
+V0Ref fRef = 1;
+
+problem PoissonRef(uRef,vRef) = int2d(CarreRef)(dx(uRef)*dx(vRef) + dy(uRef)*dy(vRef)) - int2d(CarreRef)(fRef*vRef) + on(1, uRef=0);
+PoissonRef;
+// plot(uRef, fill=1, value=1, dim=3, wait=1);
+
+real[int] listErrorL2(4);
+real[int] listErrorH1(4);
+real[int] listNp(4);
+ 
+for(int i=0;i<4;i++){
+    real np = 2^(i+5);
+    listNp[i] = np;
+    mesh Carre = buildmesh(B1(np)+B2(np)+B3(np/2)+B4(np/2)+B5(np/2)+B6(np/2));  // maillage de la solution simulée
+    fespace V0(Carre,P0); 
+    fespace V1(Carre,P1); 
+    V1 u, v;
+    V0 f = 1; // solution simulée avec maillage np
+
+    problem Poisson(u,v) = int2d(Carre)(dx(u)*dx(v) + dy(u)*dy(v)) - int2d(Carre)(f*v) + on(1, u=0);
+    Poisson;
+    V1Ref uProj= u;
+    V1Ref e = uRef - uProj;
+
+    V1Ref disk = sqrt((x-0.5)^2 + (y-0.5)^2) < 0.2 ? 0 : 1;  //Si la condition est vraie (la distance entre x et y est inférieure à 0.2), la fonction retourne 0.
+    real errorL2 = sqrt(int2d(CarreRef)((disk*e)^2)); 
+    real errorL2grad = sqrt(int2d(CarreRef)(disk*(dx(e)^2 + dy(e)^2))); // 0 si on est dans le cercle
+    real errorH1 = sqrt(errorL2^2 + errorL2grad^2);
+
+    listErrorL2[i] = errorL2;
+    listErrorH1[i] = errorH1;
+};
+
+
+{
+    ofstream file("errors2.txt");
+    for (int i = 0; i < 4; i++) {
+    file << listNp[i] << " " << listErrorL2[i] << " " << listErrorH1[i] << endl;
+};
+
+}
+
+// on observe une dégradation de la convergence à cause de la discontinuité 
+
+
+
+
+// // simuler solution sur maillage très fin pour dire que c'est soit disant la solution de référence 
+// // résoudre sur maillage fin = couteux 
+// // maillage doit être fin
+
+

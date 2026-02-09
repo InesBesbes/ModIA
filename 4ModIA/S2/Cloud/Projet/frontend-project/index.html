@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portail Big Data</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <center><h1>Portail Big Data</h1></center>
+
+    <form id="uploadDataForm">
+        <label for="dataPath">Chemin vers les données :</label><br>
+        <input type="text" id="dataPath" name="dataPath"><br>
+        <button type="submit">Charger les données</button>
+    </form>    
+    
+    <form id="uploadProgramForm" enctype="multipart/form-data">
+        <label for="programFile">Uploader un programme (JAR, etc.) :</label><br>
+        <input type="file" id="programFile" name="programFile"><br>
+        <button type="submit">Uploader le programme</button>
+    </form>
+
+    <form id="executeApplicationForm">
+        <label for="programSelect">Choisir le programme :</label><br>
+        <select id="programSelect" name="programSelect">
+            <!-- Options générées dynamiquement par JavaScript ou récupérées via une requête -->
+            <option value="program1">Programme 1</option>
+            <option value="program2">Programme 2</option>
+        </select><br>
+        
+        <label for="inputFile">Fichier d'entrée (HDFS) :</label><br>
+        <input type="text" id="inputFile" name="inputFile"><br>
+        
+        <label for="outputDir">Répertoire de sortie (HDFS) :</label><br>
+        <input type="text" id="outputDir" name="outputDir"><br>
+        
+        <button type="submit">Exécuter l'application</button>
+    </form>
+    
+
+
+<script src="script.js"></script>
+</body>
+</html>
