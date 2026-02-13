@@ -17,6 +17,6 @@ The program is jointly offered by:
 - Scientific Computing
 - Signal Processing
 - Mathematical Modeling
-- Big data & cloud
+- Big data & Cloud
 
 Feel free to explore the folders and projects!
